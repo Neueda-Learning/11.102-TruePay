@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TruePay — Register</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="dark">
+<div class="auth-page">
+  <div class="auth-split">
+    <div class="auth-left">
+      <div>
+        <div class="auth-brand">💳 TruePay</div>
+        <div class="auth-tagline">Where every payment meets trust</div>
+      </div>
+      <div class="auth-feature-list">
+        <div class="auth-feature">
+          <div class="auth-feature-icon">🏦</div>
+          <div class="auth-feature-text">
+            <h4>Unlimited Bank Accounts</h4>
+            <p>Link as many accounts as you need</p>
+          </div>
+        </div>
+        <div class="auth-feature">
+          <div class="auth-feature-icon">📋</div>
+          <div class="auth-feature-text">
+            <h4>Full Audit Trail</h4>
+            <p>Every status change recorded with timestamp</p>
+          </div>
+        </div>
+        <div class="auth-feature">
+          <div class="auth-feature-icon">👥</div>
+          <div class="auth-feature-text">
+            <h4>Beneficiary Management</h4>
+            <p>Save receivers for quick repeat payments</p>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;opacity:.4;">© 2026 TruePay. GDPR & DPDP Compliant.</div>
+    </div>
+    <div class="auth-right">
+      <div class="auth-title">Create account ✨</div>
+      <div class="auth-subtitle">Join TruePay and start making secure payments</div>
+      <form class="auth-form" id="registerForm">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input class="form-input" name="fullName" placeholder="Alex Sharma" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input class="form-input" name="email" type="email" placeholder="you@example.com" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mobile Number</label>
+          <input class="form-input" name="mobile" placeholder="9999999999" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">App PIN (4 digits — used for every transaction)</label>
+          <input class="form-input" name="appPin" placeholder="••••" maxlength="4" pattern="\d{4}" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" name="password" type="password" placeholder="••••••••" required />
+        </div>
+        <div id="regErr" class="auth-error" style="display:none;"></div>
+        <button class="auth-btn" type="submit">Create Account</button>
+      </form>
+      <div class="auth-switch">Already have an account? <a href="/login.html">Sign in</a></div>
+    </div>
+  </div>
+</div>
+<script>
+  const saved = localStorage.getItem('theme') || 'dark';
+  if (saved === 'light') document.body.classList.remove('dark');
+
+  document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const errEl = document.getElementById('regErr');
+    errEl.style.display = 'none';
+    const res = await fetch('/api/v1/auth/register', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ fullName: f.fullName.value, email: f.email.value, mobile: f.mobile.value, appPin: f.appPin.value, password: f.password.value })
+    });
+    if (res.ok) { location.href = '/dashboard.html'; return; }
+    const err = await res.json().catch(() => ({}));
+    errEl.textContent = err.message || 'Registration failed';
+    errEl.style.display = 'block';
+  });
+</script>
+</body>
+</html>
+

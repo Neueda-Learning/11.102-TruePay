@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TruePay Dashboard</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="dark">
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">💳</div>
+      <div>
+        <div class="logo-text">TruePay</div>
+        <div class="logo-tag">Where every payment meets trust</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Overview</div>
+      <button class="nav-item active" data-page="dashboard"><span class="icon">📊</span> Dashboard</button>
+      <button class="nav-item" data-page="history"><span class="icon">📋</span> Payment History</button>
+
+      <div class="nav-section-label">Payments</div>
+      <button class="nav-item" data-page="pay-upi"><span class="icon">⚡</span> Pay to UPI</button>
+      <button class="nav-item" data-page="pay-bank"><span class="icon">🏦</span> Bank Transfer</button>
+
+      <div class="nav-section-label">Manage</div>
+      <button class="nav-item" data-page="accounts"><span class="icon">💰</span> Bank Accounts</button>
+      <button class="nav-item" data-page="beneficiaries"><span class="icon">👥</span> Beneficiaries</button>
+      <button class="nav-item" data-page="profile"><span class="icon">👤</span> Profile</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar" id="sidebarAvatar">A</div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name" id="sidebarName">Loading...</div>
+          <div class="sidebar-user-email" id="sidebarEmail">—</div>
+        </div>
+      </div>
+      <div class="theme-toggle-row">
+        <span>🌙 Dark Mode</span>
+        <button class="toggle-switch on" id="themeSwitch"><span class="toggle-knob"></span></button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div>
+        <div class="topbar-title" id="topbarTitle">Dashboard</div>
+        <div class="topbar-sub" id="topbarSub">Welcome back! Here's your overview.</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="balance-chip">
+        <span class="label">Total Balance</span>
+        <span class="amount" id="topbarBalance">₹ —</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-secondary btn-icon" onclick="loadAll()" title="Refresh">🔄</button>
+        <button class="btn btn-primary" onclick="navigate('pay-bank')">+ Transfer</button>
+        <button class="btn-logout" id="logoutBtn">Logout</button>
+      </div>
+    </header>
+
+    <!-- PAGE: Dashboard -->
+    <div class="page active" id="page-dashboard">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">💰 Combined Balance</div>
+          <div class="kpi-value" id="kpiBalance">₹ 0</div>
+          <div class="kpi-badge neutral" id="kpiAccounts">0 accounts</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">✅ Completed</div>
+          <div class="kpi-value" id="kpiCompleted">0</div>
+          <div class="kpi-badge up">Successful</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">❌ Failed</div>
+          <div class="kpi-value" id="kpiFailed">0</div>
+          <div class="kpi-badge down">Needs attention</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">🛡️ Fraud Alerts</div>
+          <div class="kpi-value" id="kpiFraud">0</div>
+          <div class="kpi-badge neutral">Monitored</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Payment Volume (Last 7 Days)</div>
+              <div class="chart-amount" id="chartTotalLabel">0 payments</div>
+              <div class="chart-delta">📈 Real-time data</div>
+            </div>
+          </div>
+          <canvas id="volumeChart" height="100"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Status Distribution</div>
+              <div class="chart-meta">All time breakdown</div>
+            </div>
+          </div>
+          <canvas id="statusChart" height="160"></canvas>
+          <div class="dist-list mt8" id="distList"></div>
+        </div>
+      </div>
+
+      <div class="page-grid-2">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">Payment Method Split</div>
+          </div>
+          <canvas id="methodChart" height="140"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">Risk Overview</div>
+          </div>
+          <canvas id="riskChart" height="140"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: History -->
+    <div class="page" id="page-history">
+      <div class="section-header">
+        <div class="section-title">Payment History</div>
+        <div style="display:flex;gap:8px;">
+          <select class="form-select" id="historyFilter" style="width:160px;padding:8px 12px;">
+            <option value="">All Statuses</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="FAILED">Failed</option>
+            <option value="CREATED">Created</option>
+            <option value="VALIDATED">Validated</option>
+            <option value="SENT">Sent</option>
+          </select>
+        </div>
+      </div>
+      <div class="panel">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Payment ID</th>
+              <th>Method</th>
+              <th>Receiver</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Payment detail panel -->
+      <div class="panel" id="paymentDetailPanel" style="display:none;">
+        <div class="panel-header">
+          <div class="panel-title">Payment Details</div>
+          <button class="btn btn-secondary" onclick="document.getElementById('paymentDetailPanel').style.display='none'">✕ Close</button>
+        </div>
+        <div id="paymentDetailContent"></div>
+        <div class="panel-header mt16">
+          <div class="panel-title">Status Timeline</div>
+        </div>
+        <div class="timeline" id="paymentTimeline"></div>
+      </div>
+    </div>
+
+    <!-- PAGE: Pay to UPI -->
+    <div class="page" id="page-pay-upi">
+      <div class="section-header"><div class="section-title">⚡ Pay to UPI</div></div>
+      <div class="page-grid-2">
+        <div class="panel">
+          <form id="upiForm">
+            <div class="form-grid cols-1">
+              <div class="form-section-title">From Account</div>
+              <div class="form-group">
+                <label class="form-label">Source Bank Account</label>
+                <select class="form-select" name="sourceAccountId" id="upiSource" required></select>
+              </div>
+              <div class="form-section-title">Recipient</div>
+              <div class="form-group">
+                <label class="form-label">Destination UPI ID</label>
+                <input class="form-input" name="destinationUpiId" placeholder="merchant@upi" required />
+              </div>
+              <div class="form-section-title">Amount</div>
+              <div class="form-group">
+                <label class="form-label">Amount</label>
+                <input class="form-input" name="amount" type="number" step="0.01" placeholder="0.00" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Currency</label>
+                <select class="form-select" name="currency">
+                  <option value="INR">🇮🇳 INR</option>
+                  <option value="USD">🇺🇸 USD</option>
+                  <option value="EUR">🇪🇺 EUR</option>
+                  <option value="GBP">🇬🇧 GBP</option>
+                </select>
+              </div>
+              <div class="form-section-title">Security</div>
+              <div class="form-group">
+                <label class="form-label">Idempotency Key (unique per payment)</label>
+                <input class="form-input" name="idempotencyKey" placeholder="upi-20260803-001" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">App PIN (4 digits)</label>
+                <input class="form-input" name="appPin" maxlength="4" pattern="\d{4}" placeholder="••••" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Bank PIN (6 digits)</label>
+                <input class="form-input" name="bankPin" maxlength="6" pattern="\d{6}" placeholder="••••••" required />
+              </div>
+            </div>
+            <button class="btn btn-primary mt16" type="submit" style="width:100%;">⚡ Send UPI Payment</button>
+          </form>
+          <div id="upiResult" class="verify-result mt8"></div>
+        </div>
+        <div>
+          <div class="panel">
+            <div class="panel-title" style="margin-bottom:12px;">Your Bank Accounts</div>
+            <div id="upiAccountPreview"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: Bank Transfer -->
+    <div class="page" id="page-pay-bank">
+      <div class="section-header"><div class="section-title">🏦 Bank to Bank Transfer</div></div>
+      <div class="page-grid-2">
+        <div class="panel">
+          <form id="bankTransferForm">
+            <div class="form-grid cols-1">
+              <div class="form-section-title">From Account</div>
+              <div class="form-group">
+                <label class="form-label">Source Bank Account</label>
+                <select class="form-select" name="sourceAccountId" id="bankSource" required></select>
+              </div>
+
+              <div class="form-section-title">To Account</div>
+              <div class="form-group">
+                <label class="form-label">Saved Beneficiary (optional)</label>
+                <select class="form-select" name="beneficiaryId" id="beneficiarySelect">
+                  <option value="">— Enter manually —</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Receiver Name</label>
+                <input class="form-input" name="receiverName" placeholder="Rahul Kumar" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Receiver Account Number</label>
+                <input class="form-input" name="destinationAccount" placeholder="12345678901" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Receiver IFSC</label>
+                <input class="form-input" name="destinationIfsc" placeholder="HDFC0001234" />
+              </div>
+              <div>
+                <button type="button" class="btn btn-secondary" id="verifyReceiverBtn" style="width:100%;">🔍 Verify Receiver</button>
+                <div id="verifyReceiverMsg" class="verify-result"></div>
+              </div>
+
+              <div class="form-section-title">Transfer Details</div>
+              <div class="form-group">
+                <label class="form-label">Amount</label>
+                <input class="form-input" name="amount" type="number" step="0.01" placeholder="0.00" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Currency</label>
+                <select class="form-select" name="currency">
+                  <option value="INR">🇮🇳 INR</option>
+                  <option value="USD">🇺🇸 USD</option>
+                  <option value="EUR">🇪🇺 EUR</option>
+                  <option value="GBP">🇬🇧 GBP</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Reference / Remark (optional)</label>
+                <input class="form-input" name="reference" placeholder="Rent payment August" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Idempotency Key</label>
+                <input class="form-input" name="idempotencyKey" placeholder="bank-20260803-001" required />
+              </div>
+
+              <div class="form-section-title">Authorization</div>
+              <div class="form-group">
+                <label class="form-label">App PIN (4 digits)</label>
+                <input class="form-input" name="appPin" maxlength="4" pattern="\d{4}" placeholder="••••" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Bank PIN (6 digits)</label>
+                <input class="form-input" name="bankPin" maxlength="6" pattern="\d{6}" placeholder="••••••" required />
+              </div>
+            </div>
+            <button class="btn btn-primary mt16" type="submit" style="width:100%;">🏦 Initiate Transfer</button>
+          </form>
+          <div id="bankTransferResult" class="verify-result mt8"></div>
+        </div>
+        <div>
+          <div class="panel">
+            <div class="panel-title" style="margin-bottom:12px;">Saved Beneficiaries</div>
+            <div id="bankBenePreview"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title" style="margin-bottom:12px;">Transfer Flow</div>
+            <div class="timeline">
+              <div class="timeline-item">
+                <div class="timeline-dot VALIDATED">1</div>
+                <div class="timeline-content"><div class="timeline-label">Enter Details</div><div class="timeline-note">Source account, receiver info, amount</div></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot VALIDATED">2</div>
+                <div class="timeline-content"><div class="timeline-label">Verify Receiver</div><div class="timeline-note">Check if receiver exists in TruePay</div></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot VALIDATED">3</div>
+                <div class="timeline-content"><div class="timeline-label">Authorize</div><div class="timeline-note">App PIN + Bank PIN</div></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot COMPLETED">4</div>
+                <div class="timeline-content"><div class="timeline-label">Completed</div><div class="timeline-note">Funds transferred instantly</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: Bank Accounts -->
+    <div class="page" id="page-accounts">
+      <div class="section-header">
+        <div class="section-title">💰 Bank Accounts</div>
+      </div>
+      <div class="page-grid-2">
+        <div>
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">Linked Accounts</div>
+              <div style="font-size:13px;color:var(--text-sub);">Combined: <strong id="accCombined">₹0</strong></div>
+            </div>
+            <div id="accountsList"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Add New Account</div></div>
+          <form id="bankAccountForm">
+            <div class="form-grid cols-1">
+              <div class="form-group">
+                <label class="form-label">Bank Name</label>
+                <input class="form-input" name="bankName" placeholder="HDFC Bank" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Account Number</label>
+                <input class="form-input" name="accountNumber" placeholder="12345678901" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">IFSC Code</label>
+                <input class="form-input" name="ifscCode" placeholder="HDFC0001234" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Bank PIN (6 digits)</label>
+                <input class="form-input" name="bankPin" maxlength="6" pattern="\d{6}" placeholder="••••••" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Opening Balance</label>
+                <input class="form-input" name="openingBalance" type="number" step="0.01" placeholder="0.00" required />
+              </div>
+            </div>
+            <button class="btn btn-primary mt16" type="submit" style="width:100%;">+ Link Account</button>
+          </form>
+          <div id="bankAccountResult" class="verify-result mt8"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: Beneficiaries -->
+    <div class="page" id="page-beneficiaries">
+      <div class="section-header"><div class="section-title">👥 Beneficiaries</div></div>
+      <div class="page-grid-2">
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Saved Beneficiaries</div></div>
+          <div id="beneficiariesList"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Add Beneficiary</div></div>
+          <form id="beneficiaryForm">
+            <div class="form-grid cols-1">
+              <div class="form-group">
+                <label class="form-label">Receiver Name</label>
+                <input class="form-input" name="name" placeholder="Rahul Kumar" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Account Number</label>
+                <input class="form-input" name="accountNumber" placeholder="12345678901" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">IFSC Code</label>
+                <input class="form-input" name="ifscCode" placeholder="HDFC0001234" required />
+              </div>
+            </div>
+            <button class="btn btn-primary mt16" type="submit" style="width:100%;">+ Add Beneficiary</button>
+          </form>
+          <div id="beneResult" class="verify-result mt8"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: Profile -->
+    <div class="page" id="page-profile">
+      <div class="section-header"><div class="section-title">👤 Profile</div></div>
+      <div class="page-grid-2">
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Personal Information</div></div>
+          <div id="profileContent"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Account Security</div></div>
+          <div style="font-size:14px;color:var(--text-sub);line-height:1.7;">
+            <p>🔑 App PIN: <strong>4-digit</strong> — used for every transaction</p>
+            <p class="mt8">🏦 Bank PIN: <strong>6-digit</strong> — per linked bank account</p>
+            <p class="mt8">🔒 Password: Used for <strong>login only</strong></p>
+            <p class="mt8">🛡️ All sensitive values are <strong>hashed</strong> — never stored in plain text</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app-shell -->
+
+<script src="/app.js"></script>
+</body>
+</html>
+
