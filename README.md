@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # TruePay
 
 Tagline: **Where every payment meets trust**
@@ -118,3 +119,7 @@ Then open:
 - Data export/delete endpoints and retention jobs
 - Enhanced anomaly detection and alert review workflow
 
+=======
+# 11.102-TruePay
+Payment Processing System
+>>>>>>> d8756cadf6a68fb338e8cd7a4c5ca502219519d5
