@@ -90,7 +90,6 @@ function renderSidebar() {
   document.getElementById('sidebarName').textContent = state.user.fullName;
   document.getElementById('sidebarEmail').textContent = state.user.email;
   document.getElementById('sidebarAvatar').textContent = state.user.fullName.charAt(0).toUpperCase();
-  document.getElementById('topbarBalance').textContent = state.summary ? inr(state.summary.combinedBalance) : 'INR 0.00';
 }
 
 function renderKPIs() {
@@ -206,6 +205,37 @@ function renderAccounts() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = options;
   });
+
+  const sideList = state.accounts.slice(0, 5).map((a) => `
+    <div class="dashboard-account-item">
+      <div>
+        <div class="dashboard-account-bank">${a.bankName}</div>
+        <div class="dashboard-account-num">${maskNum(a.accountNumber)}</div>
+      </div>
+      <div class="dashboard-account-bal">${inr(a.balance)}</div>
+    </div>`).join('');
+  const dashboardAccounts = document.getElementById('dashboardBankAccountsList');
+  if (dashboardAccounts) {
+    dashboardAccounts.innerHTML = sideList || '<div class="empty">No linked accounts yet.</div>';
+  }
+}
+
+function renderDashboardRecent() {
+  const tbody = document.getElementById('dashboardRecentBody');
+  if (!tbody) return;
+
+  if (!state.payments.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">No recent transactions.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = state.payments.slice(0, 6).map((p) => `
+    <tr>
+      <td style="font-family:monospace;font-size:11px;color:var(--text-sub);">${p.id.slice(0, 8)}...</td>
+      <td>${p.receiverName || p.destinationUpiId || '-'}</td>
+      <td style="font-weight:700;">${p.amount} ${p.currency}</td>
+      <td><span class="status-badge ${p.status}">${p.status}</span></td>
+    </tr>`).join('');
 }
 
 function renderProfile() {
@@ -429,6 +459,7 @@ async function loadAll() {
   renderCharts();
   renderHistory();
   renderAccounts();
+  renderDashboardRecent();
   renderProfile();
 }
 

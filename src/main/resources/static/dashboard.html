@@ -54,83 +54,119 @@
 
     <!-- Topbar -->
     <header class="topbar">
-      <div>
+      <div class="topbar-left">
         <div class="topbar-title" id="topbarTitle">Dashboard</div>
         <div class="topbar-sub" id="topbarSub">Welcome back! Here's your overview.</div>
       </div>
       <div class="spacer"></div>
-      <div class="balance-chip">
-        <span class="label">Total Balance</span>
-        <span class="amount" id="topbarBalance">₹ —</span>
+      <div class="topbar-search-wrap">
+        <span class="search-icon">⌕</span>
+        <input class="topbar-search" placeholder="Search anything..." />
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-secondary btn-icon" onclick="loadAll()" title="Refresh">🔄</button>
-        <button class="btn btn-primary" onclick="navigate('pay-bank')">+ Transfer</button>
+        <button class="btn btn-secondary btn-icon" onclick="loadAll()" title="Refresh">↻</button>
+        <button class="btn btn-secondary btn-icon" onclick="navigate('history')" title="History">◷</button>
         <button class="btn-logout" id="logoutBtn">Logout</button>
       </div>
     </header>
 
     <!-- PAGE: Dashboard -->
     <div class="page active" id="page-dashboard">
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">💰 Combined Balance</div>
-          <div class="kpi-value" id="kpiBalance">₹ 0</div>
-          <div class="kpi-badge neutral" id="kpiAccounts">0 accounts</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">✅ Completed</div>
-          <div class="kpi-value" id="kpiCompleted">0</div>
-          <div class="kpi-badge up">Successful</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">❌ Failed</div>
-          <div class="kpi-value" id="kpiFailed">0</div>
-          <div class="kpi-badge down">Needs attention</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">🛡️ Fraud Alerts</div>
-          <div class="kpi-value" id="kpiFraud">0</div>
-          <div class="kpi-badge neutral">Monitored</div>
-        </div>
-      </div>
+      <div class="dashboard-shell">
+        <div class="dashboard-main-col">
+          <div class="dashboard-hero-grid">
+            <div class="hero-balance-card">
+              <div class="hero-head">
+                <div class="kpi-label">Combined Balance</div>
+                <span class="hero-chip" id="kpiAccounts">0 accounts</span>
+              </div>
+              <div class="hero-balance" id="kpiBalance">INR 0.00</div>
+              <div class="hero-sub" id="chartTotalLabel">0 payments</div>
+              <canvas id="volumeChart" height="85"></canvas>
+            </div>
 
-      <div class="chart-grid">
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <div class="chart-title">Payment Volume (Last 7 Days)</div>
-              <div class="chart-amount" id="chartTotalLabel">0 payments</div>
-              <div class="chart-delta">📈 Real-time data</div>
+            <div class="mini-kpi-wrap">
+              <div class="mini-kpi-card">
+                <div class="kpi-label">Completed</div>
+                <div class="mini-kpi-value" id="kpiCompleted">0</div>
+                <div class="kpi-badge up">Successful</div>
+              </div>
+              <div class="mini-kpi-card">
+                <div class="kpi-label">Failed</div>
+                <div class="mini-kpi-value" id="kpiFailed">0</div>
+                <div class="kpi-badge down">Needs attention</div>
+              </div>
+              <div class="mini-kpi-card">
+                <div class="kpi-label">Fraud Alerts</div>
+                <div class="mini-kpi-value" id="kpiFraud">0</div>
+                <div class="kpi-badge neutral">Monitored</div>
+              </div>
             </div>
           </div>
-          <canvas id="volumeChart" height="100"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <div class="chart-title">Status Distribution</div>
-              <div class="chart-meta">All time breakdown</div>
+
+          <div class="chart-grid">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div>
+                  <div class="chart-title">Payment Status</div>
+                  <div class="chart-meta">All-time distribution</div>
+                </div>
+              </div>
+              <canvas id="statusChart" height="160"></canvas>
+              <div class="dist-list mt8" id="distList"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title">Payment Method Split</div>
+              </div>
+              <canvas id="methodChart" height="160"></canvas>
             </div>
           </div>
-          <canvas id="statusChart" height="160"></canvas>
-          <div class="dist-list mt8" id="distList"></div>
-        </div>
-      </div>
 
-      <div class="page-grid-2">
-        <div class="chart-card">
-          <div class="chart-header">
-            <div class="chart-title">Payment Method Split</div>
+          <div class="page-grid-2">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title">Risk Overview</div>
+              </div>
+              <canvas id="riskChart" height="140"></canvas>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header"><div class="chart-title">Recent Transactions</div></div>
+              <table class="data-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Txn ID</th>
+                    <th>To / From</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboardRecentBody"></tbody>
+              </table>
+            </div>
           </div>
-          <canvas id="methodChart" height="140"></canvas>
         </div>
-        <div class="chart-card">
-          <div class="chart-header">
-            <div class="chart-title">Risk Overview</div>
+
+        <aside class="dashboard-side-col">
+          <div class="panel quick-actions-card">
+            <div class="panel-title" style="margin-bottom:12px;">Quick Actions</div>
+            <div class="quick-actions-grid">
+              <button class="quick-action" onclick="navigate('pay-upi')">Pay via UPI</button>
+              <button class="quick-action" onclick="navigate('pay-bank')">Bank Transfer</button>
+              <button class="quick-action" onclick="navigate('accounts')">Add Bank Account</button>
+              <button class="quick-action" onclick="navigate('history')">View History</button>
+            </div>
           </div>
-          <canvas id="riskChart" height="140"></canvas>
-        </div>
+          <div class="panel side-accounts-panel">
+            <div class="panel-title" style="margin-bottom:12px;">My Bank Accounts</div>
+            <div id="dashboardBankAccountsList"></div>
+          </div>
+          <div class="panel side-note-panel">
+            <div class="panel-title">Fraud Monitor</div>
+            <div class="side-note-ok">All Good</div>
+            <div class="side-note-sub">No suspicious activity detected.</div>
+          </div>
+        </aside>
       </div>
     </div>
 
