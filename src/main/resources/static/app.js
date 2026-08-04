@@ -53,11 +53,6 @@ async function api(path, options = {}) {
     }
   });
 
-  if (res.status === 401) {
-    location.href = '/login.html';
-    return null;
-  }
-
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || 'Request failed');
@@ -313,11 +308,6 @@ function showResult(id, message, ok) {
 document.getElementById('themeSwitch').addEventListener('click', toggleTheme);
 document.querySelectorAll('.nav-item[data-page]').forEach((btn) => btn.addEventListener('click', () => navigate(btn.dataset.page)));
 
-document.getElementById('logoutBtn').addEventListener('click', async () => {
-  await api('/api/v1/auth/logout', { method: 'POST' });
-  location.href = '/login.html';
-});
-
 document.getElementById('historyFilter').addEventListener('change', renderHistory);
 
 document.getElementById('verifyReceiverBtn').addEventListener('click', async () => {
@@ -469,5 +459,5 @@ window.loadAll = loadAll;
 window.navigate = navigate;
 
 applyTheme(getTheme());
-loadAll();
+loadAll().catch((err) => console.error('Failed to load dashboard', err));
 
