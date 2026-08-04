@@ -35,6 +35,7 @@ public class BankAccountService {
         account.setAccountNumber(request.accountNumber());
         account.setIfscCode(request.ifscCode().toUpperCase());
         account.setBankPinHash(passwordEncoder.encode(request.bankPin()));
+        account.setAccountType("saving");
         account.setBalance(request.openingBalance());
 
         return bankAccountRepository.save(account);

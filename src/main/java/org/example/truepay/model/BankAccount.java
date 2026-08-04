@@ -27,6 +27,9 @@ public class BankAccount {
     @Column(nullable = false)
     private String bankPinHash;
 
+    @Column(nullable = false)
+    private String accountType;
+
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal balance;
 
@@ -73,6 +76,14 @@ public class BankAccount {
 
     public void setBankPinHash(String bankPinHash) {
         this.bankPinHash = bankPinHash;
+    }
+
+    public String getAccountType() {
+        return accountType;
+    }
+
+    public void setAccountType(String accountType) {
+        this.accountType = accountType;
     }
 
     public BigDecimal getBalance() {
