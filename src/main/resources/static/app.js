@@ -1,5 +1,5 @@
 /* TruePay dashboard frontend */
-const state = { user: null, accounts: [], beneficiaries: [], payments: [], summary: null, charts: {} };
+const state = { user: null, accounts: [], payments: [], summary: null, charts: {} };
 
 /* Theme */
 function getTheme() {
@@ -35,7 +35,6 @@ function navigate(page) {
     'pay-upi': ['Pay to UPI', 'Send money instantly via UPI.'],
     'pay-bank': ['Bank Transfer', 'Transfer funds to any bank account.'],
     accounts: ['Bank Accounts', 'Manage your linked accounts.'],
-    beneficiaries: ['Beneficiaries', 'Manage saved receivers.'],
     profile: ['Profile', 'Your personal information.']
   };
 
@@ -209,22 +208,6 @@ function renderAccounts() {
   });
 }
 
-function renderBeneficiaries() {
-  const select = document.getElementById('beneficiarySelect');
-  select.innerHTML = '<option value="">- Enter manually -</option>' +
-    state.beneficiaries.map((b) => `<option value="${b.id}">${b.name} | ${maskNum(b.accountNumber)}</option>`).join('');
-
-  const html = state.beneficiaries.map((b) => `
-    <div class="bene-card">
-      <div class="bene-avatar">${b.name.charAt(0).toUpperCase()}</div>
-      <div class="bene-info"><div class="bene-name">${b.name}</div><div class="bene-num">${b.accountNumber} | ${b.ifscCode}</div></div>
-      <button class="btn btn-danger" onclick="deleteBeneficiary(${b.id})">Delete</button>
-    </div>`).join('');
-
-  document.getElementById('beneficiariesList').innerHTML = html || '<div class="empty">No beneficiaries saved yet.</div>';
-  document.getElementById('bankBenePreview').innerHTML = html || '<div class="empty">No beneficiaries saved yet.</div>';
-}
-
 function renderProfile() {
   if (!state.user) return;
   document.getElementById('profileContent').innerHTML = `
@@ -289,16 +272,6 @@ async function deleteBankAccount(id) {
   }
 }
 
-async function deleteBeneficiary(id) {
-  if (!confirm('Remove this beneficiary?')) return;
-  try {
-    await api(`/api/v1/beneficiaries/${id}`, { method: 'DELETE' });
-    await loadAll();
-  } catch (e) {
-    alert(e.message);
-  }
-}
-
 /* Form helpers */
 function showResult(id, message, ok) {
   const el = document.getElementById(id);
@@ -316,15 +289,6 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('historyFilter').addEventListener('change', renderHistory);
-
-document.getElementById('beneficiarySelect').addEventListener('change', (e) => {
-  const selected = state.beneficiaries.find((b) => String(b.id) === e.target.value);
-  const form = document.getElementById('bankTransferForm');
-  if (!selected) return;
-  form.receiverName.value = selected.name;
-  form.destinationAccount.value = selected.accountNumber;
-  form.destinationIfsc.value = selected.ifscCode;
-});
 
 document.getElementById('verifyReceiverBtn').addEventListener('click', async () => {
   const form = document.getElementById('bankTransferForm');
@@ -368,22 +332,6 @@ document.getElementById('bankAccountForm').addEventListener('submit', async (e) 
     await loadAll();
   } catch (err) {
     showResult('bankAccountResult', err.message, false);
-  }
-});
-
-document.getElementById('beneficiaryForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const f = e.target;
-  try {
-    await api('/api/v1/beneficiaries', {
-      method: 'POST',
-      body: JSON.stringify({ name: f.name.value, accountNumber: f.accountNumber.value, ifscCode: f.ifscCode.value })
-    });
-    f.reset();
-    showResult('beneResult', 'Beneficiary added.', true);
-    await loadAll();
-  } catch (err) {
-    showResult('beneResult', err.message, false);
   }
 });
 
@@ -450,7 +398,6 @@ document.getElementById('bankTransferForm').addEventListener('submit', async (e)
         sourceAccountId: Number(f.sourceAccountId.value),
         amount: Number(f.amount.value),
         currency: f.currency.value,
-        beneficiaryId: f.beneficiaryId.value ? Number(f.beneficiaryId.value) : null,
         receiverName: f.receiverName.value || null,
         destinationAccount: f.destinationAccount.value || null,
         destinationIfsc: f.destinationIfsc.value || null,
@@ -471,9 +418,8 @@ async function loadAll() {
   state.user = await api('/api/v1/auth/me');
   if (!state.user) return;
 
-  [state.accounts, state.beneficiaries, state.payments, state.summary] = await Promise.all([
+  [state.accounts, state.payments, state.summary] = await Promise.all([
     api('/api/v1/bank-accounts'),
-    api('/api/v1/beneficiaries'),
     api('/api/v1/payments'),
     api('/api/v1/dashboard/summary')
   ]);
@@ -483,12 +429,10 @@ async function loadAll() {
   renderCharts();
   renderHistory();
   renderAccounts();
-  renderBeneficiaries();
   renderProfile();
 }
 
 window.deleteBankAccount = deleteBankAccount;
-window.deleteBeneficiary = deleteBeneficiary;
 window.showPaymentDetail = showPaymentDetail;
 window.loadAll = loadAll;
 window.navigate = navigate;
