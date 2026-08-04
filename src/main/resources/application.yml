@@ -2,7 +2,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/truepay?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
     username: ${DB_USER:root}
-    password: ${DB_PASSWORD:change-me}
+    password: ${DB_PASSWORD:n3u3da!}
   jpa:
     show-sql: false
     hibernate:

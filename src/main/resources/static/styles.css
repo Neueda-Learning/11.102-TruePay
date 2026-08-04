@@ -338,6 +338,7 @@ body.dark .tag-bank { background: #1e3050; color: #60a5fa; }
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
+
 @media (max-width: 900px) {
   .auth-split { grid-template-columns: 1fr; }
   .auth-left { display: none; }
