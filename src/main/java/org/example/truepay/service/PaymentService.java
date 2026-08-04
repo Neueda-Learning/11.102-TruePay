@@ -300,8 +300,8 @@ public class PaymentService {
     }
 
     public ReceiverVerificationResponse verifyReceiver(String accountNumber, String ifscCode) {
-        if (!accountNumber.matches("^\\d{8,20}$")) {
-            throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Receiver account number is invalid");
+        if (!accountNumber.matches("^\\d{8,12}$")) {
+            throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Account number must be 8-12 digits");
         }
 
         String normalizedIfsc = ifscCode.toUpperCase(Locale.ROOT);

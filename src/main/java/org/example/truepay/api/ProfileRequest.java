@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Pattern;
 public record ProfileRequest(
         @NotBlank String fullName,
         @NotBlank @Email String email,
-        @NotBlank String mobile,
+        @NotBlank @Pattern(regexp = "^\\d{10}$", message = "Mobile number must be exactly 10 digits") String mobile,
         @Pattern(regexp = "^\\d{4}$", message = "App PIN must be 4 digits") String appPin,
         @NotBlank String password
 ) {
