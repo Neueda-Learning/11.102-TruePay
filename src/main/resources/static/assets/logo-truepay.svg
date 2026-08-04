@@ -1,0 +1,24 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tpLight" x1="68" y1="120" x2="470" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D57CFF"/>
+      <stop offset="1" stop-color="#5B1CFF"/>
+    </linearGradient>
+    <linearGradient id="tpDark" x1="174" y1="175" x2="408" y2="468" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#342060"/>
+      <stop offset="1" stop-color="#170B42"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Top sweep -->
+  <rect x="68" y="120" width="280" height="72" rx="36" fill="url(#tpLight)"/>
+  <path d="M348 156C414 156 468 210 468 276" stroke="url(#tpLight)" stroke-width="72" stroke-linecap="round"/>
+
+  <!-- Left stem -->
+  <rect x="186" y="156" width="74" height="314" rx="37" fill="url(#tpLight)"/>
+
+  <!-- Inner P shape -->
+  <path d="M230 190H344C399 190 436 224 436 280C436 335 399 368 344 368H294L284 466H218L230 190Z" fill="url(#tpDark)"/>
+  <path d="M294 258H350C366 258 378 268 378 285C378 301 366 312 350 312H294V258Z" fill="white" fill-opacity="0.92"/>
+</svg>
+
