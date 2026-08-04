@@ -12,7 +12,6 @@ public record UpiPaymentRequest(
         @NotNull @DecimalMin(value = "0.01", inclusive = true) BigDecimal amount,
         @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "Currency must be ISO-4217 format") String currency,
         @NotBlank String destinationUpiId,
-        @NotBlank String idempotencyKey,
         @Pattern(regexp = "^\\d{4}$", message = "App PIN must be 4 digits") String appPin,
         @Pattern(regexp = "^\\d{6}$", message = "Bank PIN must be 6 digits") String bankPin
 ) {

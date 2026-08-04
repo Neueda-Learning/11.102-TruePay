@@ -66,6 +66,7 @@ public class PaymentController {
     private PaymentResponse toResponse(Payment payment) {
         return new PaymentResponse(
                 payment.getId(),
+                payment.getIdempotencyKey(),
                 payment.getUser().getId(),
                 payment.getSourceAccount().getId(),
                 payment.getMethod(),

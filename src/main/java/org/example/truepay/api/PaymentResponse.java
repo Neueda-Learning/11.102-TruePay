@@ -10,6 +10,7 @@ import java.util.UUID;
 
 public record PaymentResponse(
         UUID id,
+        String idempotencyKey,
         Long userId,
         Long sourceAccountId,
         PaymentMethod method,

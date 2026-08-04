@@ -299,7 +299,7 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target;
   try {
-    const p = await api('/api/v1/payments/pay-to-upi', { method: 'POST', body: JSON.stringify({ sourceAccountId: Number(f.sourceAccountId.value), amount: Number(f.amount.value), currency: f.currency.value, destinationUpiId: f.destinationUpiId.value, idempotencyKey: f.idempotencyKey.value, appPin: f.appPin.value, bankPin: f.bankPin.value }) });
+    const p = await api('/api/v1/payments/pay-to-upi', { method: 'POST', body: JSON.stringify({ sourceAccountId: Number(f.sourceAccountId.value), amount: Number(f.amount.value), currency: f.currency.value, destinationUpiId: f.destinationUpiId.value, appPin: f.appPin.value, bankPin: f.bankPin.value }) });
     f.reset(); showResult('upiResult', `✅ Payment ${p.status}! ID: ${p.id.slice(0,8)}…`, true);
     await loadAll();
   } catch (e2) { showResult('upiResult', '❌ ' + e2.message, false); }
@@ -309,7 +309,7 @@ document.getElementById('bankTransferForm').addEventListener('submit', async (e)
   e.preventDefault();
   const f = e.target;
   try {
-    const p = await api('/api/v1/payments/pay-to-bank', { method: 'POST', body: JSON.stringify({ sourceAccountId: Number(f.sourceAccountId.value), amount: Number(f.amount.value), currency: f.currency.value, beneficiaryId: f.beneficiaryId.value ? Number(f.beneficiaryId.value) : null, receiverName: f.receiverName.value || null, destinationAccount: f.destinationAccount.value || null, destinationIfsc: f.destinationIfsc.value || null, reference: f.reference.value || null, idempotencyKey: f.idempotencyKey.value, appPin: f.appPin.value, bankPin: f.bankPin.value }) });
+    const p = await api('/api/v1/payments/pay-to-bank', { method: 'POST', body: JSON.stringify({ sourceAccountId: Number(f.sourceAccountId.value), amount: Number(f.amount.value), currency: f.currency.value, beneficiaryId: f.beneficiaryId.value ? Number(f.beneficiaryId.value) : null, receiverName: f.receiverName.value || null, destinationAccount: f.destinationAccount.value || null, destinationIfsc: f.destinationIfsc.value || null, reference: f.reference.value || null, appPin: f.appPin.value, bankPin: f.bankPin.value }) });
     f.reset(); showResult('bankTransferResult', `✅ Transfer ${p.status}! ID: ${p.id.slice(0,8)}…`, true);
     await loadAll();
   } catch (e2) { showResult('bankTransferResult', '❌ ' + e2.message, false); }
