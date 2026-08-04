@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # TruePay
 
 Tagline: **Where every payment meets trust**
@@ -7,8 +6,8 @@ TruePay is a Spring Boot payments platform with a REST API and a lightweight das
 
 ## What is implemented
 
-- Session-based `register`, `login`, `logout`, and `me` APIs
-- Dashboard pages: `login`, `register`, `dashboard`
+- Direct dashboard access without login, registration, or logout screens
+- Automatic single-user session bootstrap for local/demo usage
 - Profile card with personal tab and bank details tab
 - Unlimited linked bank accounts with combined balance
 - Delete bank account (allowed only when account balance is zero)
@@ -51,10 +50,8 @@ TruePay is a Spring Boot payments platform with a REST API and a lightweight das
 3. Run the app.
 
 ```powershell
-Set-Location "C:\Users\Administrator\Desktop\Project\TruePay"
-$env:DB_HOST="localhost"
-$env:DB_PORT="3306"
-$env:DB_NAME="truepay"
+Set-Location "C:\Users\Administrator\Desktop\TruePay\untitled\11.102-TruePay"
+$env:DB_URL="jdbc:mysql://localhost:3306/truepay?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
 $env:DB_USER="root"
 $env:DB_PASSWORD="<your-password>"
 mvn spring-boot:run
@@ -62,17 +59,13 @@ mvn spring-boot:run
 
 Then open:
 
-- `http://localhost:8080/register.html`
-- `http://localhost:8080/login.html`
+- `http://localhost:8080/`
 - `http://localhost:8080/dashboard.html`
 
 ## API Overview
 
-### Authentication
+### Current User
 
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 
 ### Bank Accounts
@@ -108,10 +101,15 @@ Then open:
 ## GDPR + DPDP Baseline Implemented
 
 - Minimized stored user/payment fields
-- Sensitive values hashed at rest (`appPin`, `bankPin`, login `password`)
+- Sensitive values hashed at rest (`appPin`, `bankPin`, internal password hash`)
 - Credentials loaded from environment variables (not hardcoded)
-- Session-based auth for protected actions
 - Clear structured error codes for API consumers
+
+## Notes
+
+- The removed `login.html` and `register.html` pages now redirect to `dashboard.html` for backward compatibility.
+- Local/demo sessions automatically use a default profile seeded on first access.
+- Demo app PIN for transaction flows: `1234`
 
 ## Next Enhancements
 
@@ -119,7 +117,3 @@ Then open:
 - Data export/delete endpoints and retention jobs
 - Enhanced anomaly detection and alert review workflow
 
-=======
-# 11.102-TruePay
-Payment Processing System
->>>>>>> d8756cadf6a68fb338e8cd7a4c5ca502219519d5

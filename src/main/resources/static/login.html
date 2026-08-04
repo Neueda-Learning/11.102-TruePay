@@ -2,93 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content="0; url=/dashboard.html" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TruePay — Login</title>
-  <link rel="stylesheet" href="/styles.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <title>TruePay</title>
 </head>
-<body class="dark">
-<div class="auth-page">
-  <div class="auth-split">
-    <div class="auth-left">
-      <div>
-        <div class="auth-brand">💳 TruePay</div>
-        <div class="auth-tagline">Where every payment meets trust</div>
-      </div>
-      <div class="auth-feature-list">
-        <div class="auth-feature">
-          <div class="auth-feature-icon">🔒</div>
-          <div class="auth-feature-text">
-            <h4>Secure Payments</h4>
-            <p>Bank-grade encryption with PIN-based authentication</p>
-          </div>
-        </div>
-        <div class="auth-feature">
-          <div class="auth-feature-icon">⚡</div>
-          <div class="auth-feature-text">
-            <h4>Instant Transfers</h4>
-            <p>Send money via UPI or bank account in seconds</p>
-          </div>
-        </div>
-        <div class="auth-feature">
-          <div class="auth-feature-icon">📊</div>
-          <div class="auth-feature-text">
-            <h4>Smart Dashboard</h4>
-            <p>Track all transactions with real-time analytics</p>
-          </div>
-        </div>
-        <div class="auth-feature">
-          <div class="auth-feature-icon">🛡️</div>
-          <div class="auth-feature-text">
-            <h4>Fraud Protection</h4>
-            <p>AI-powered fraud monitoring on every transaction</p>
-          </div>
-        </div>
-      </div>
-      <div style="font-size:11px;opacity:.4;">© 2026 TruePay. GDPR & DPDP Compliant.</div>
-    </div>
-    <div class="auth-right">
-      <div style="margin-bottom:32px;">
-        <div class="auth-title">Welcome back 👋</div>
-        <div class="auth-subtitle">Sign in to your TruePay account</div>
-      </div>
-      <form class="auth-form" id="loginForm">
-        <div class="form-group">
-          <label class="form-label">Email Address</label>
-          <input class="form-input" name="email" type="email" placeholder="you@example.com" required />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input class="form-input" name="password" type="password" placeholder="••••••••" required />
-        </div>
-        <div id="loginErr" class="auth-error" style="display:none;"></div>
-        <button class="auth-btn" type="submit">Sign In</button>
-      </form>
-      <div class="auth-switch">Don't have an account? <a href="/register.html">Create one</a></div>
-    </div>
-  </div>
-</div>
-<script>
-  const saved = localStorage.getItem('theme') || 'dark';
-  if (saved === 'light') document.body.classList.remove('dark');
-
-  document.getElementById('loginForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = e.target;
-    const errEl = document.getElementById('loginErr');
-    errEl.style.display = 'none';
-    const res = await fetch('/api/v1/auth/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ email: f.email.value, password: f.password.value })
-    });
-    if (res.ok) { location.href = '/dashboard.html'; return; }
-    const err = await res.json().catch(() => ({}));
-    errEl.textContent = err.message || 'Invalid credentials';
-    errEl.style.display = 'block';
-  });
-</script>
+<body>
+  <p>Login has been removed. Redirecting to the dashboard...</p>
 </body>
 </html>
 
