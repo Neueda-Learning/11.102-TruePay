@@ -3,6 +3,8 @@ package org.example.truepay.service;
 import org.example.truepay.api.*;
 import org.example.truepay.model.*;
 import org.example.truepay.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import java.util.UUID;
 
 @Service
 public class PaymentService {
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
     private static final Set<String> SUPPORTED_CURRENCIES = Set.of("USD", "EUR", "GBP", "INR");
     private static final BigDecimal MAX_AMOUNT = new BigDecimal("1000000.00");
     private static final BigDecimal FRAUD_AMOUNT = new BigDecimal("50000.00");
@@ -189,7 +192,7 @@ public class PaymentService {
             payment.setFailureReason(null);
             paymentRepository.save(payment);
             recordStatus(payment, PaymentStatus.SUCCESS, "SYSTEM", "Payment completed successfully");
-            recordAudit(payment, "PAYMENT_SUCCESS", "Payment of " + payment.getCurrency() + " " + payment.getAmount() + " completed");
+            safeRecordAudit(payment, "PAYMENT_SUCCESS", "Payment of " + payment.getCurrency() + " " + payment.getAmount() + " completed");
             return payment;
         } catch (TruePayException ex) {
             failPayment(payment, ex.getErrorCode(), ex.getMessage());
@@ -227,7 +230,7 @@ public class PaymentService {
         payment.setStatus(PaymentStatus.PENDING);
         paymentRepository.save(payment);
         recordStatus(payment, PaymentStatus.PENDING, "API", "Payment submitted");
-        recordAudit(payment, "PAYMENT_INITIATED", "Payment initiated");
+        safeRecordAudit(payment, "PAYMENT_INITIATED", "Payment initiated");
         return payment;
     }
 
@@ -337,7 +340,7 @@ public class PaymentService {
         payment.setFailureReason(reason);
         paymentRepository.save(payment);
         recordStatus(payment, PaymentStatus.FAILED, "SYSTEM", reason);
-        recordAudit(payment, "PAYMENT_FAILED", reason);
+        safeRecordAudit(payment, "PAYMENT_FAILED", reason);
     }
 
     @Transactional
@@ -355,7 +358,7 @@ public class PaymentService {
         payment.setErrorMessage(cancellationReason);
         paymentRepository.save(payment);
         recordStatus(payment, PaymentStatus.CANCELLED, "USER", cancellationReason);
-        recordAudit(payment, "PAYMENT_CANCELLED", cancellationReason);
+        safeRecordAudit(payment, "PAYMENT_CANCELLED", cancellationReason);
         return payment;
     }
 
@@ -378,6 +381,14 @@ public class PaymentService {
         auditLog.setAction(action);
         auditLog.setDescription(description);
         auditLogRepository.save(auditLog);
+    }
+
+    private void safeRecordAudit(Payment payment, String action, String description) {
+        try {
+            recordAudit(payment, action, description);
+        } catch (Exception ex) {
+            log.warn("Audit log write failed for payment {} action {}: {}", payment.getId(), action, ex.getMessage());
+        }
     }
 
     public Payment getPayment(Long userId, UUID paymentId) {
