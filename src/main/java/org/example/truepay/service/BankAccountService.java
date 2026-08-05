@@ -5,9 +5,11 @@ import org.example.truepay.model.BankAccount;
 import org.example.truepay.model.ErrorCode;
 import org.example.truepay.model.UserProfile;
 import org.example.truepay.repository.BankAccountRepository;
+import org.example.truepay.repository.PaymentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Locale;
@@ -16,13 +18,16 @@ import java.util.List;
 @Service
 public class BankAccountService {
     private final BankAccountRepository bankAccountRepository;
+    private final PaymentRepository paymentRepository;
     private final ProfileService profileService;
     private final PasswordEncoder passwordEncoder;
 
     public BankAccountService(BankAccountRepository bankAccountRepository,
+                              PaymentRepository paymentRepository,
                               ProfileService profileService,
                               PasswordEncoder passwordEncoder) {
         this.bankAccountRepository = bankAccountRepository;
+        this.paymentRepository = paymentRepository;
         this.profileService = profileService;
         this.passwordEncoder = passwordEncoder;
     }
@@ -83,6 +88,7 @@ public class BankAccountService {
         }
     }
 
+    @Transactional
     public void deleteAccount(Long userId, Long accountId) {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Bank account not found"));
@@ -96,6 +102,8 @@ public class BankAccountService {
                     "Transfer or withdraw balance before deleting the account");
         }
 
+        // Preserve payment history rows by detaching source-account references before deleting the account.
+        paymentRepository.clearSourceAccountReferences(accountId);
         bankAccountRepository.delete(account);
     }
 }

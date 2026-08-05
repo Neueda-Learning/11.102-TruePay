@@ -14,7 +14,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -34,6 +33,7 @@ public class PaymentService {
     private final ProfileService profileService;
     private final BankAccountService bankAccountService;
     private final BeneficiaryService beneficiaryService;
+    private final PaymentLimitService paymentLimitService;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentStatusHistoryRepository statusHistoryRepository,
@@ -43,7 +43,8 @@ public class PaymentService {
                           AuditLogRepository auditLogRepository,
                           ProfileService profileService,
                           BankAccountService bankAccountService,
-                          BeneficiaryService beneficiaryService) {
+                          BeneficiaryService beneficiaryService,
+                          PaymentLimitService paymentLimitService) {
         this.paymentRepository = paymentRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.fraudAlertRepository = fraudAlertRepository;
@@ -53,6 +54,7 @@ public class PaymentService {
         this.profileService = profileService;
         this.bankAccountService = bankAccountService;
         this.beneficiaryService = beneficiaryService;
+        this.paymentLimitService = paymentLimitService;
     }
 
     @Transactional
@@ -152,6 +154,12 @@ public class PaymentService {
         if (source == null || !source.getUser().getId().equals(userId)) {
             throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Source account not found");
         }
+
+        Payment paymentDraft = new Payment();
+        paymentDraft.setUser(user);
+        paymentDraft.setMethod(method);
+        paymentDraft.setAmount(amount);
+        paymentLimitService.validateWithinLimits(paymentDraft);
 
         Payment payment = createPendingPayment(user, source, amount, currency, method, receiverType,
                 receiverValue, receiverName, destinationAccount, destinationIfsc, referenceRemark);

@@ -525,11 +525,11 @@ body.dark .topbar {
 }
 
 .hero-balance-card {
-  padding: 18px 20px;
+  padding: 12px 14px;
   border-color: rgba(124,92,252,.45);
 }
 
-.hero-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.hero-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .hero-chip {
   font-size: 11px;
   color: #8f7fff;
@@ -539,8 +539,14 @@ body.dark .topbar {
   padding: 4px 10px;
 }
 
-.hero-balance { font-size: 38px; font-weight: 800; letter-spacing: -.6px; margin-bottom: 4px; }
-.hero-sub { color: var(--text-sub); font-size: 13px; margin-bottom: 8px; }
+.hero-balance { font-size: 34px; font-weight: 800; letter-spacing: -.6px; margin-bottom: 0; line-height: 1.08; }
+.hero-sub { color: var(--text-sub); font-size: 13px; margin-bottom: 4px; }
+
+.form-input:disabled,
+.form-select:disabled {
+  opacity: .68;
+  cursor: not-allowed;
+}
 
 .mini-kpi-wrap {
   display: grid;
