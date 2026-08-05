@@ -17,7 +17,6 @@ public record BankPaymentRequest(
         String destinationIfsc,
         String reference,
         @NotBlank String idempotencyKey,
-        @Pattern(regexp = "^\\d{4}$", message = "App PIN must be 4 digits") String appPin,
         @Pattern(regexp = "^\\d{6}$", message = "Bank PIN must be 6 digits") String bankPin
 ) {
 }

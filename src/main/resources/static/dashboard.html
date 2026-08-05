@@ -286,18 +286,14 @@
                 <select class="form-select" name="sourceAccountId" id="bankSource" required></select>
               </div>
 
-              <div class="form-section-title">To Account</div>
+              <div class="form-section-title">Security</div>
               <div class="form-group">
-                <label class="form-label">Receiver Name</label>
-                <input class="form-input" name="receiverName" placeholder="Rahul Kumar" />
+                <label class="form-label">Idempotency Key (unique per payment)</label>
+                <input class="form-input" name="idempotencyKey" placeholder="upi-20260803-001" required />
               </div>
               <div class="form-group">
-                <label class="form-label">Receiver Account Number</label>
-                <input class="form-input" name="destinationAccount" placeholder="12345678901" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Receiver IFSC</label>
-                <input class="form-input" name="destinationIfsc" placeholder="HDFC0001234" />
+                <label class="form-label">Bank PIN (6 digits)</label>
+                <input class="form-input" name="bankPin" maxlength="6" pattern="\d{6}" placeholder="••••••" required />
               </div>
               <div>
                 <button type="button" class="btn btn-secondary" id="verifyReceiverBtn" style="width:100%;">🔍 Verify Receiver</button>
@@ -317,10 +313,6 @@
                   <option value="EUR">🇪🇺 EUR</option>
                   <option value="GBP">🇬🇧 GBP</option>
                 </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Reference / Remark (optional)</label>
-                <input class="form-input" name="reference" placeholder="Rent payment August" />
               </div>
               <div class="form-group">
                 <label class="form-label">Idempotency Key</label>
@@ -437,8 +429,7 @@
         <div class="panel">
           <div class="panel-header"><div class="panel-title">Account Security</div></div>
           <div style="font-size:14px;color:var(--text-sub);line-height:1.7;">
-            <p>🔑 App PIN: <strong>1234</strong> in demo mode — used for every transaction</p>
-            <p class="mt8">🏦 Bank PIN: <strong>6-digit</strong> — per linked bank account</p>
+            <p>🏦 Bank PIN: <strong>6-digit</strong> — per linked bank account</p>
             <p class="mt8">🧪 Dashboard access opens directly in <strong>single-user mode</strong></p>
             <p class="mt8">🛡️ Sensitive values remain <strong>hashed</strong> — never stored in plain text</p>
           </div>

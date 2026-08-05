@@ -59,7 +59,6 @@ public class PaymentService {
                 request.amount(),
                 request.currency(),
                 request.idempotencyKey(),
-                request.appPin(),
                 request.bankPin(),
                 PaymentMethod.UPI,
                 request.destinationUpiId(),
@@ -87,7 +86,6 @@ public class PaymentService {
                 request.amount(),
                 request.currency(),
                 request.idempotencyKey(),
-                request.appPin(),
                 request.bankPin(),
                 PaymentMethod.BANK,
                 null,
@@ -103,7 +101,6 @@ public class PaymentService {
                                             BigDecimal amount,
                                             String currency,
                                             String idempotencyKey,
-                                            String appPin,
                                             String bankPin,
                                             PaymentMethod method,
                                             String destinationUpi,
@@ -118,7 +115,6 @@ public class PaymentService {
         }
 
         UserProfile user = profileService.getUserOrThrow(userId);
-        profileService.validateAppPin(user, appPin);
         BankAccount source = bankAccountService.getForPayment(userId, sourceAccountId);
         bankAccountService.validateBankPin(source, bankPin);
 
