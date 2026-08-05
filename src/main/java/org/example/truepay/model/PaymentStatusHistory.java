@@ -12,7 +12,7 @@ public class PaymentStatusHistory {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "payment_id", nullable = false)
+    @JoinColumn(name = "payment_id", nullable = false, columnDefinition = "BINARY(16)")
     private Payment payment;
 
     @Enumerated(EnumType.STRING)

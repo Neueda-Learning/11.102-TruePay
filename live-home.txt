@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="refresh" content="1; url=/dashboard.html" />
+  <title>TruePay</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="dark">
+  <main class="redirect-page">
+    <div class="redirect-card">
+      <img class="redirect-logo" src="/assets/logo-truepay.svg" alt="TruePay logo" />
+      <h1 class="redirect-title">TruePay</h1>
+      <p class="redirect-text">Redirecting to your dashboard...</p>
+    </div>
+  </main>
+</body>
+</html>
+

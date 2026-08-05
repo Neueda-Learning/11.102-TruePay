@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -134,6 +135,35 @@ class UpiPaymentControllerTest {
         assertEquals(1, saved.size(), "One UPI payment should be persisted");
         assertEquals(PaymentMethod.UPI, saved.get(0).getMethod());
         assertEquals("coffee@upi", saved.get(0).getDestinationUpiId());
+    }
+
+    @Test
+    void payToUpiDashboardEndpointSucceedsWithSourceAccountNumber() throws Exception {
+        String payload = """
+                {
+                  "sourceAccount": "%s",
+                  "receiverType": "UPI",
+                  "receiver": "coffee@upi",
+                  "amount": 150.00,
+                  "currency": "INR",
+                  "bankPin": "123456"
+                }
+                """.formatted(source.getAccountNumber());
+
+        mockMvc.perform(post("/api/v1/payments/upi")
+                        .sessionAttr(SessionService.SESSION_USER_ID, user.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.method").value("UPI"))
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.destinationUpiId").value("coffee@upi"))
+                .andExpect(jsonPath("$.errorCode").isEmpty());
+
+        List<Payment> saved = paymentRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+        assertEquals(1, saved.size(), "One dashboard UPI payment should be persisted");
+        assertEquals(source.getId(), saved.get(0).getSourceAccount().getId());
+        assertNotNull(saved.get(0).getIdempotencyKey(), "UPI payments should carry an idempotency key");
     }
 
     @Test

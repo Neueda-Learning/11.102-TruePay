@@ -148,19 +148,15 @@ public class PaymentService {
                                             String destinationIfsc,
                                             String referenceRemark) {
         UserProfile user = profileService.getUserOrThrow(userId);
-        Payment payment = createPendingPayment(user, amount, currency, method, receiverType,
+        BankAccount source = bankAccountRepository.findByIdForUpdate(sourceAccountId).orElse(null);
+        if (source == null || !source.getUser().getId().equals(userId)) {
+            throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Source account not found");
+        }
+
+        Payment payment = createPendingPayment(user, source, amount, currency, method, receiverType,
                 receiverValue, receiverName, destinationAccount, destinationIfsc, referenceRemark);
 
         try {
-            BankAccount source = bankAccountRepository.findByIdForUpdate(sourceAccountId).orElse(null);
-            if (source == null || !source.getUser().getId().equals(userId)) {
-                failPayment(payment, ErrorCode.INVALID_ACCOUNT, "Source account not found");
-                return payment;
-            }
-
-            payment.setSourceAccount(source);
-            paymentRepository.save(payment);
-
             bankAccountService.validateBankPin(source, bankPin);
             validatePaymentFields(source, amount, currency, method, receiverType, receiverValue, destinationAccount, destinationIfsc);
 
@@ -204,6 +200,7 @@ public class PaymentService {
     }
 
     private Payment createPendingPayment(UserProfile user,
+                                         BankAccount sourceAccount,
                                          BigDecimal amount,
                                          String currency,
                                          PaymentMethod method,
@@ -215,6 +212,7 @@ public class PaymentService {
                                          String referenceRemark) {
         Payment payment = new Payment();
         payment.setUser(user);
+        payment.setSourceAccount(sourceAccount);
         payment.setMethod(method);
         payment.setReceiverType(receiverType);
         payment.setAmount(amount);
