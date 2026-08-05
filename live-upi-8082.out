@@ -1,0 +1,8 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< org.example:truepay >-------------------------
+[INFO] Building truepay 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.3.2:run (default-cli) > test-compile @ truepay >>>

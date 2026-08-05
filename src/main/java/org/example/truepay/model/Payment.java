@@ -1,8 +1,6 @@
 package org.example.truepay.model;
 
 import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -13,12 +11,14 @@ import java.util.UUID;
 public class Payment {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(length = 36, updatable = false, nullable = false)
+    @Column(name = "id", columnDefinition = "BINARY(16)", updatable = false, nullable = false)
     private UUID id;
 
     @Column(name = "transaction_id", length = 32, nullable = false, unique = true)
     private String transactionId;
+
+    @Column(name = "idempotency_key", nullable = false)
+    private String idempotencyKey;
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
@@ -75,6 +75,9 @@ public class Payment {
         if (transactionId == null || transactionId.isBlank()) {
             transactionId = "TXN" + now.toEpochMilli() + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         }
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            idempotencyKey = "payment-" + UUID.randomUUID();
+        }
         createdAt = now;
         updatedAt = now;
     }
@@ -94,6 +97,14 @@ public class Payment {
 
     public void setTransactionId(String transactionId) {
         this.transactionId = transactionId;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
     }
 
     public UserProfile getUser() {

@@ -12,7 +12,7 @@ public class FraudAlert {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "payment_id", nullable = false)
+    @JoinColumn(name = "payment_id", nullable = false, columnDefinition = "BINARY(16)")
     private Payment payment;
 
     @Column(nullable = false)

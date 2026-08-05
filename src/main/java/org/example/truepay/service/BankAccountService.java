@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.Locale;
 import java.util.List;
 
 @Service
@@ -28,15 +29,28 @@ public class BankAccountService {
 
     public BankAccount addAccount(Long userId, BankAccountRequest request) {
         UserProfile user = profileService.getUserOrThrow(userId);
+        String accountNumber = request.accountNumber().trim();
+
+        if (bankAccountRepository.findByAccountNumber(accountNumber).isPresent()) {
+            throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST,
+                    "Bank account with this account number already exists");
+        }
+
+        String accountHolderName = user.getFullName();
+        if (accountHolderName == null || accountHolderName.isBlank()) {
+            accountHolderName = "TruePay User";
+        } else {
+            accountHolderName = accountHolderName.trim();
+        }
 
         BankAccount account = new BankAccount();
         account.setUser(user);
-        account.setAccountHolderName(request.accountHolderName());
-        account.setBankName(request.bankName());
-        account.setAccountNumber(request.accountNumber());
-        account.setIfscCode(request.ifscCode().toUpperCase());
+        account.setAccountHolderName(accountHolderName);
+        account.setBankName(request.bankName().trim());
+        account.setAccountNumber(accountNumber);
+        account.setIfscCode(request.ifscCode().trim().toUpperCase(Locale.ROOT));
         account.setBankPinHash(passwordEncoder.encode(request.bankPin()));
-        account.setAccountType(request.accountType());
+        account.setAccountType(request.accountType().trim().toUpperCase(Locale.ROOT));
         account.setBalance(request.openingBalance());
 
         return bankAccountRepository.save(account);

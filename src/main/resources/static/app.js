@@ -6,16 +6,124 @@ function getTheme() {
   return localStorage.getItem('theme') || 'dark';
 }
 
+function getColorBlindMode() {
+  return localStorage.getItem('colorBlindMode') === '1';
+}
+
+function normalizeStatus(status) {
+  const value = String(status || '').toUpperCase();
+  if (value === 'COMPLETED') return 'SUCCESS';
+  if (value === 'CREATED' || value === 'VALIDATED' || value === 'SENT') return 'PENDING';
+  return value;
+}
+
+function statusText(status) {
+  const normalized = normalizeStatus(status);
+  return {
+    SUCCESS: 'SUCCESS',
+    FAILED: 'FAILED',
+    PENDING: 'PENDING',
+    CANCELLED: 'CANCELLED'
+  }[normalized] || normalized || '-';
+}
+
+function statusIcon(status) {
+  const normalized = normalizeStatus(status);
+  return { SUCCESS: 'OK', FAILED: 'X', PENDING: 'INP', CANCELLED: 'CXL' }[normalized] || '...';
+}
+
+function statusCssClass(status) {
+  return normalizeStatus(status);
+}
+
+function refreshThemeSensitiveViews() {
+  if (state.summary) {
+    renderCharts();
+  }
+  // Re-render status badges/tags so visual cues stay in sync after mode switches.
+  renderHistory();
+  renderAudits();
+  renderDashboardRecent();
+}
+
+function getChartPalette() {
+  if (document.body.classList.contains('color-blind')) {
+    // Okabe-Ito inspired palette for broad color-vision accessibility.
+    return {
+      volume: '#0072B2',
+      completed: '#0072B2',
+      failed: '#D55E00',
+      pending: '#CC79A7',
+      fraud: '#E69F00',
+      upi: '#56B4E9',
+      bank: '#009E73'
+    };
+  }
+
+  return {
+    volume: '#7c5cfc',
+    completed: '#22c55e',
+    failed: '#ef4444',
+    pending: '#7c5cfc',
+    fraud: '#fb923c',
+    upi: 'rgba(124,92,252,.8)',
+    bank: 'rgba(79,140,255,.8)'
+  };
+}
+
 function applyTheme(theme) {
   const dark = theme === 'dark';
   document.body.classList.toggle('dark', dark);
   document.getElementById('themeSwitch').classList.toggle('on', dark);
 }
 
+function applyColorBlindMode(enabled) {
+  document.body.classList.toggle('color-blind', enabled);
+  const switchEl = document.getElementById('colorBlindSwitch');
+  if (switchEl) {
+    switchEl.classList.toggle('on', enabled);
+  }
+}
+
 function toggleTheme() {
   const next = getTheme() === 'dark' ? 'light' : 'dark';
   localStorage.setItem('theme', next);
   applyTheme(next);
+  refreshThemeSensitiveViews();
+}
+
+function toggleColorBlindMode() {
+  const enabled = !getColorBlindMode();
+  localStorage.setItem('colorBlindMode', enabled ? '1' : '0');
+  applyColorBlindMode(enabled);
+  refreshThemeSensitiveViews();
+}
+
+const SIDEBAR_PREF_KEY = 'sidebarCollapsed';
+
+function syncMenuToggleAria() {
+  const menuToggles = document.querySelectorAll('[data-sidebar-toggle]');
+  if (!menuToggles.length) return;
+
+  const expanded = !document.body.classList.contains('sidebar-collapsed');
+
+  menuToggles.forEach((toggle) => toggle.setAttribute('aria-expanded', String(expanded)));
+}
+
+function setSidebarCollapsed(collapsed) {
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+  localStorage.setItem(SIDEBAR_PREF_KEY, collapsed ? '1' : '0');
+  syncMenuToggleAria();
+}
+
+function toggleSidebarMenu() {
+  const collapsed = document.body.classList.contains('sidebar-collapsed');
+  setSidebarCollapsed(!collapsed);
+}
+
+function initSidebarMenuState() {
+  const collapsed = localStorage.getItem(SIDEBAR_PREF_KEY) === '1';
+  setSidebarCollapsed(collapsed);
 }
 
 /* Navigation */
@@ -31,6 +139,7 @@ function navigate(page) {
 
   const titles = {
     dashboard: ['Dashboard', "Welcome back! Here's your overview."],
+    analysis: ['Analysis', 'Trends, status, risk, and recent transaction insights.'],
     history: ['Payment History', 'All your transactions in one place.'],
     audits: ['Audit History', 'Every transaction event, actor, and status change.'],
     'pay-upi': ['Pay to UPI', 'Send money instantly via UPI.'],
@@ -74,10 +183,6 @@ function maskNum(n) {
 
 function fmtDate(d) {
   return d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
-}
-
-function statusIcon(s) {
-  return { SUCCESS: 'OK', FAILED: 'X', PENDING: 'NEW', CANCELLED: 'CXL' }[s] || '...';
 }
 
 function toSearchText(value) {
@@ -137,7 +242,8 @@ function getSearchTargetPage(query) {
   if (!query) return null;
 
   const pageKeywords = {
-    dashboard: ['dashboard', 'overview', 'summary', 'kpi', 'risk'],
+    dashboard: ['dashboard', 'overview', 'summary', 'kpi', 'balance', 'quick actions'],
+    analysis: ['analysis', 'graphs', 'chart', 'risk', 'status', 'method split', 'recent transactions', 'day wise'],
     history: ['history', 'payment history', 'payments', 'transactions'],
     audits: ['audit', 'audit history', 'events', 'actor', 'timeline'],
     'pay-upi': ['upi', 'pay upi', 'send upi', 'mobile'],
@@ -214,6 +320,7 @@ function renderCharts() {
   });
 
   const s = state.summary;
+  const palette = getChartPalette();
   const completed = s.completedPayments;
   const failed = s.failedPayments;
   const inProgress = Math.max(0, s.totalPayments - completed - failed);
@@ -232,7 +339,20 @@ function renderCharts() {
 
   state.charts.volumeChart = new Chart(document.getElementById('volumeChart'), {
     type: 'line',
-    data: { labels, datasets: [{ label: 'Payments', data: lastSeven, borderColor: '#7c5cfc', tension: 0.35 }] },
+    data: {
+      labels,
+      datasets: [{
+        label: 'Payments',
+        data: lastSeven,
+        borderColor: palette.volume,
+        backgroundColor: 'transparent',
+        borderWidth: 3,
+        pointRadius: 3,
+        pointHoverRadius: 4,
+        tension: 0.35,
+        borderDash: getColorBlindMode() ? [5, 3] : []
+      }]
+    },
     options: {
       responsive: true,
       plugins: { legend: { display: false } },
@@ -250,7 +370,15 @@ function renderCharts() {
 
   state.charts.statusChart = new Chart(document.getElementById('statusChart'), {
     type: 'doughnut',
-    data: { labels: ['Completed', 'Failed', 'In Progress'], datasets: [{ data: [completed, failed, inProgress], backgroundColor: ['#22c55e', '#ef4444', '#7c5cfc'] }] },
+    data: {
+      labels: ['Completed', 'Failed', 'In Progress'],
+      datasets: [{
+        data: [completed, failed, inProgress],
+        backgroundColor: [palette.completed, palette.failed, palette.pending],
+        borderColor: getColorBlindMode() ? ['#ffffff', '#ffffff', '#ffffff'] : undefined,
+        borderWidth: getColorBlindMode() ? 2 : 0
+      }]
+    },
     options: { responsive: true, cutout: '65%', plugins: { legend: { display: false } } }
   });
 
@@ -258,7 +386,15 @@ function renderCharts() {
   const bankCount = state.payments.filter((p) => p.method === 'BANK' || p.method === 'BANK_TRANSFER').length;
   state.charts.methodChart = new Chart(document.getElementById('methodChart'), {
     type: 'bar',
-    data: { labels: ['UPI', 'Bank Transfer'], datasets: [{ data: [upiCount, bankCount], backgroundColor: ['rgba(124,92,252,.8)', 'rgba(79,140,255,.8)'] }] },
+    data: {
+      labels: ['UPI', 'Bank Transfer'],
+      datasets: [{
+        data: [upiCount, bankCount],
+        backgroundColor: [palette.upi, palette.bank],
+        borderColor: getColorBlindMode() ? ['#1f2937', '#1f2937'] : undefined,
+        borderWidth: getColorBlindMode() ? 1 : 0
+      }]
+    },
     options: {
       responsive: true,
       plugins: { legend: { display: false } },
@@ -276,7 +412,15 @@ function renderCharts() {
 
   state.charts.riskChart = new Chart(document.getElementById('riskChart'), {
     type: 'bar',
-    data: { labels: ['Completed', 'Failed', 'Fraud Alerts'], datasets: [{ data: [completed, failed, s.fraudAlerts], backgroundColor: ['rgba(34,197,94,.7)', 'rgba(239,68,68,.7)', 'rgba(251,146,60,.7)'] }] },
+    data: {
+      labels: ['Completed', 'Failed', 'Fraud Alerts'],
+      datasets: [{
+        data: [completed, failed, s.fraudAlerts],
+        backgroundColor: [palette.completed, palette.failed, palette.fraud],
+        borderColor: getColorBlindMode() ? ['#1f2937', '#1f2937', '#1f2937'] : undefined,
+        borderWidth: getColorBlindMode() ? 1 : 0
+      }]
+    },
     options: {
       responsive: true,
       plugins: { legend: { display: false } },
@@ -294,16 +438,16 @@ function renderCharts() {
 
   const total = completed + failed + inProgress || 1;
   document.getElementById('distList').innerHTML = [
-    { label: 'Completed', val: completed, color: '#22c55e' },
-    { label: 'Failed', val: failed, color: '#ef4444' },
-    { label: 'In Progress', val: inProgress, color: '#7c5cfc' }
-  ].map((d) => `<div class="dist-item"><div class="dist-dot" style="background:${d.color}"></div><span class="dist-label">${d.label}</span><span class="dist-val">${d.val}</span><span class="dist-pct">${Math.round((d.val / total) * 100)}%</span></div>`).join('');
+    { label: 'Completed', val: completed, color: palette.completed, glyph: 'OK' },
+    { label: 'Failed', val: failed, color: palette.failed, glyph: 'X' },
+    { label: 'In Progress', val: inProgress, color: palette.pending, glyph: 'INP' }
+  ].map((d) => `<div class="dist-item"><div class="dist-dot" style="background:${d.color}"></div><span class="dist-label">${d.glyph} ${d.label}</span><span class="dist-val">${d.val}</span><span class="dist-pct">${Math.round((d.val / total) * 100)}%</span></div>`).join('');
 }
 
 function renderHistory() {
   const filter = document.getElementById('historyFilter').value;
   const query = state.searchQuery;
-  const byStatus = filter ? state.payments.filter((p) => p.status === filter) : state.payments;
+  const byStatus = filter ? state.payments.filter((p) => normalizeStatus(p.status) === filter) : state.payments;
   const data = byStatus.filter((p) => paymentMatchesQuery(p, query));
   const tbody = document.getElementById('historyTableBody');
 
@@ -319,7 +463,7 @@ function renderHistory() {
       <td><span class="tag tag-${p.method === 'UPI' ? 'upi' : 'bank'}">${p.method}</span></td>
       <td>${p.receiverName || p.destinationUpiId || '-'}</td>
       <td style="font-weight:700;">${p.amount} <span style="color:var(--text-sub);font-size:11px;">${p.currency}</span></td>
-      <td><span class="status-badge ${p.status}">${statusIcon(p.status)} ${p.status}</span></td>
+      <td><span class="status-badge ${statusCssClass(p.status)}">${statusIcon(p.status)} ${statusText(p.status)}</span></td>
       <td style="color:var(--text-sub);">${fmtDate(p.createdAt)}</td>
       <td><button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="showPaymentDetail('${p.id}')">Detail</button></td>
     </tr>`).join('');
@@ -386,7 +530,7 @@ function renderDashboardRecent() {
       <td style="font-family:monospace;font-size:11px;color:var(--text-sub);">${p.id.slice(0, 8)}...</td>
       <td>${p.receiverName || p.destinationUpiId || '-'}</td>
       <td style="font-weight:700;">${p.amount} ${p.currency}</td>
-      <td><span class="status-badge ${p.status}">${p.status}</span></td>
+      <td><span class="status-badge ${statusCssClass(p.status)}">${statusIcon(p.status)} ${statusText(p.status)}</span></td>
     </tr>`).join('');
 }
 
@@ -414,7 +558,7 @@ function renderAudits() {
 
   const filter = document.getElementById('auditStatusFilter')?.value || '';
   const query = state.searchQuery;
-  const byStatus = filter ? state.audits.filter((audit) => audit.status === filter) : state.audits;
+  const byStatus = filter ? state.audits.filter((audit) => normalizeStatus(audit.status) === filter) : state.audits;
   const data = byStatus.filter((audit) => auditMatchesQuery(audit, query));
 
   const eventCount = document.getElementById('auditEventCount');
@@ -438,7 +582,7 @@ function renderAudits() {
       <td><span class="tag tag-${audit.method === 'UPI' ? 'upi' : 'bank'}">${audit.method}</span></td>
       <td>${audit.receiver || '-'}</td>
       <td style="font-weight:700;">${audit.amount} <span style="color:var(--text-sub);font-size:11px;">${audit.currency}</span></td>
-      <td><span class="status-badge ${audit.status}">${statusIcon(audit.status)} ${audit.status}</span></td>
+      <td><span class="status-badge ${statusCssClass(audit.status)}">${statusIcon(audit.status)} ${statusText(audit.status)}</span></td>
       <td>${audit.triggeredBy}</td>
       <td>
         <div>${audit.notes || '-'}</div>
@@ -456,7 +600,7 @@ async function showPaymentDetail(paymentId) {
   content.innerHTML = `
     <div class="page-grid-2" style="margin-bottom:12px;">
       <div><div class="kpi-label">Payment ID</div><div style="font-family:monospace;font-size:12px;">${payment.id}</div></div>
-      <div><div class="kpi-label">Status</div><span class="status-badge ${payment.status}">${statusIcon(payment.status)} ${payment.status}</span></div>
+      <div><div class="kpi-label">Status</div><span class="status-badge ${statusCssClass(payment.status)}">${statusIcon(payment.status)} ${statusText(payment.status)}</span></div>
       <div><div class="kpi-label">Amount</div><div style="font-weight:700;">${payment.amount} ${payment.currency}</div></div>
       <div><div class="kpi-label">Method</div><span class="tag tag-${payment.method === 'UPI' ? 'upi' : 'bank'}">${payment.method}</span></div>
       <div><div class="kpi-label">Receiver</div><div>${payment.receiverName || payment.destinationUpiId || '-'}</div></div>
@@ -471,9 +615,9 @@ async function showPaymentDetail(paymentId) {
     const history = await api(`/api/v1/payments/${paymentId}/history`);
     document.getElementById('paymentTimeline').innerHTML = (history || []).map((h) => `
       <div class="timeline-item">
-        <div class="timeline-dot ${h.status}">${statusIcon(h.status)}</div>
+        <div class="timeline-dot ${statusCssClass(h.status)}">${statusIcon(h.status)}</div>
         <div class="timeline-content">
-          <div class="timeline-label">${h.status}</div>
+          <div class="timeline-label">${statusText(h.status)}</div>
           <div class="timeline-time">${fmtDate(h.changedAt)} by ${h.triggeredBy}</div>
           <div class="timeline-note">${h.notes || ''}</div>
         </div>
@@ -493,9 +637,31 @@ async function deleteBankAccount(id) {
   if (!confirm('Delete this bank account? Only allowed with zero balance.')) return;
   try {
     await api(`/api/v1/bank-accounts/${id}`, { method: 'DELETE' });
-    await loadAll();
+    await refreshAccountsAndSummary();
   } catch (e) {
     alert(e.message);
+  }
+}
+
+async function refreshAccountsAndSummary() {
+  const [accountsResult, summaryResult] = await Promise.allSettled([
+    api('/api/v1/bank-accounts'),
+    api('/api/v1/dashboard/summary')
+  ]);
+
+  if (accountsResult.status === 'fulfilled') {
+    state.accounts = accountsResult.value || [];
+  }
+
+  if (summaryResult.status === 'fulfilled') {
+    state.summary = summaryResult.value;
+  }
+
+  renderKPIs();
+  renderAccounts();
+  renderDashboardRecent();
+  if (state.summary) {
+    renderCharts();
   }
 }
 
@@ -508,7 +674,18 @@ function showResult(id, message, ok) {
 
 /* Event wiring */
 document.getElementById('themeSwitch').addEventListener('click', toggleTheme);
+const colorBlindSwitch = document.getElementById('colorBlindSwitch');
+if (colorBlindSwitch) {
+  colorBlindSwitch.addEventListener('click', toggleColorBlindMode);
+}
 document.querySelectorAll('.nav-item[data-page]').forEach((btn) => btn.addEventListener('click', () => navigate(btn.dataset.page)));
+
+const menuToggles = document.querySelectorAll('[data-sidebar-toggle]');
+
+menuToggles.forEach((toggle) => {
+  toggle.addEventListener('click', toggleSidebarMenu);
+});
+
 
 document.getElementById('historyFilter').addEventListener('change', renderHistory);
 
@@ -533,29 +710,49 @@ if (topbarSearchInput) {
 }
 
 
-document.getElementById('bankAccountForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const f = e.target;
+async function submitBankAccountForm(form) {
   try {
     await api('/api/v1/bank-accounts', {
       method: 'POST',
       body: JSON.stringify({
-        accountHolderName: f.accountHolderName.value,
-        bankName: f.bankName.value,
-        accountNumber: f.accountNumber.value,
-        ifscCode: f.ifscCode.value,
-        accountType: f.accountType.value,
-        bankPin: f.bankPin.value,
-        openingBalance: Number(f.openingBalance.value)
+        bankName: form.bankName.value,
+        accountNumber: form.accountNumber.value,
+        ifscCode: form.ifscCode.value,
+        accountType: form.accountType.value,
+        bankPin: form.bankPin.value,
+        openingBalance: Number(form.openingBalance.value)
       })
     });
-    f.reset();
+    form.reset();
     showResult('bankAccountResult', 'Bank account linked successfully.', true);
-    await loadAll();
+    try {
+      await refreshAccountsAndSummary();
+    } catch (refreshErr) {
+      console.warn('Bank account linked, but account refresh was partial.', refreshErr);
+    }
   } catch (err) {
     showResult('bankAccountResult', err.message, false);
   }
-});
+}
+
+const bankAccountForm = document.getElementById('bankAccountForm');
+if (bankAccountForm) {
+  bankAccountForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await submitBankAccountForm(e.target);
+  });
+}
+
+const linkBankAccountButton = document.getElementById('linkBankAccountButton');
+if (bankAccountForm && linkBankAccountButton) {
+  linkBankAccountButton.addEventListener('click', async () => {
+    if (typeof bankAccountForm.reportValidity === 'function' && !bankAccountForm.reportValidity()) {
+      return;
+    }
+
+    await submitBankAccountForm(bankAccountForm);
+  });
+}
 
 document.getElementById('upiRecipientType').addEventListener('change', function () {
   const isMobile = this.value === 'mobile';
@@ -564,6 +761,27 @@ document.getElementById('upiRecipientType').addEventListener('change', function 
   document.getElementById('upiIdInput').required = !isMobile;
   document.getElementById('mobileInput').required = isMobile;
 });
+
+async function refreshPaymentData() {
+  const [accountsResult, paymentsResult, auditsResult, summaryResult] = await Promise.allSettled([
+    api('/api/v1/bank-accounts'),
+    api('/api/v1/payments'),
+    api('/api/v1/payments/audits'),
+    api('/api/v1/dashboard/summary')
+  ]);
+
+  if (accountsResult.status === 'fulfilled') state.accounts = accountsResult.value || [];
+  if (paymentsResult.status === 'fulfilled') state.payments = paymentsResult.value || [];
+  if (auditsResult.status === 'fulfilled') state.audits = auditsResult.value || [];
+  if (summaryResult.status === 'fulfilled') state.summary = summaryResult.value;
+
+  renderKPIs();
+  renderCharts();
+  renderHistory();
+  renderAudits();
+  renderAccounts();
+  renderDashboardRecent();
+}
 
 document.getElementById('upiForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -610,8 +828,16 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
     document.getElementById('upiRecipientType').value = 'upi';
     document.getElementById('upiIdGroup').style.display = '';
     document.getElementById('mobileGroup').style.display = 'none';
-    showResult('upiResult', `Payment ${p.status}. ID: ${p.id.slice(0, 8)}...`, true);
-    await loadAll();
+    const paymentSucceeded = p.status === 'SUCCESS';
+    const paymentMessage = paymentSucceeded
+      ? `Payment completed successfully. ID: ${String(p.id).slice(0, 8)}...`
+      : (p.failureReason || p.errorMessage || `Payment ${p.status}.`);
+    showResult('upiResult', paymentMessage, paymentSucceeded);
+    try {
+      await refreshPaymentData();
+    } catch (refreshErr) {
+      console.warn('UPI payment processed, but payment data refresh was partial.', refreshErr);
+    }
   } catch (err) {
     showResult('upiResult', err.message, false);
   }
@@ -671,6 +897,7 @@ async function loadAll() {
 const auditStatusFilter = document.getElementById('auditStatusFilter');
 if (auditStatusFilter) auditStatusFilter.addEventListener('change', renderAudits);
 
+
 window.deleteBankAccount = deleteBankAccount;
 window.openAuditPayment = openAuditPayment;
 window.showPaymentDetail = showPaymentDetail;
@@ -678,6 +905,8 @@ window.loadAll = loadAll;
 window.navigate = navigate;
 
 applyTheme(getTheme());
+applyColorBlindMode(getColorBlindMode());
+initSidebarMenuState();
 loadAll().catch((err) => console.error('Failed to load dashboard', err));
 
 
