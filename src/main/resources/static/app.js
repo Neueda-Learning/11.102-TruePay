@@ -1,5 +1,5 @@
 /* TruePay dashboard frontend */
-const state = { user: null, accounts: [], payments: [], audits: [], summary: null, charts: {}, searchQuery: '' };
+const state = { user: null, accounts: [], payments: [], audits: [], summary: null, paymentLimits: null, charts: {}, searchQuery: '' };
 
 /* Theme */
 function getTheme() {
@@ -145,7 +145,7 @@ function navigate(page) {
     'pay-upi': ['Pay to UPI', 'Send money instantly via UPI.'],
     'pay-bank': ['Bank Transfer', 'Transfer funds to any bank account.'],
     accounts: ['Bank Accounts', 'Manage your linked accounts.'],
-    profile: ['Profile', 'Your personal information.']
+    'payment-limits': ['Payment Limits', 'Control daily, monthly, and per-transaction transfer caps.']
   };
 
   const [title, sub] = titles[page] || ['TruePay', ''];
@@ -249,7 +249,7 @@ function getSearchTargetPage(query) {
     'pay-upi': ['upi', 'pay upi', 'send upi', 'mobile'],
     'pay-bank': ['bank transfer', 'transfer', 'ifsc', 'receiver'],
     accounts: ['account', 'bank accounts', 'ifsc', 'balance', 'linked'],
-    profile: ['profile', 'user', 'email', 'mobile']
+    'payment-limits': ['payment limit', 'daily limit', 'monthly limit', 'per transaction limit', 'transfer cap']
   };
 
   for (const [page, words] of Object.entries(pageKeywords)) {
@@ -261,11 +261,6 @@ function getSearchTargetPage(query) {
   if (state.payments.some((p) => paymentMatchesQuery(p, query))) return 'history';
   if (state.audits.some((a) => auditMatchesQuery(a, query))) return 'audits';
   if (state.accounts.some((a) => accountMatchesQuery(a, query))) return 'accounts';
-
-  if (state.user) {
-    const userText = [state.user.fullName, state.user.email, state.user.mobile].map(toSearchText).join(' ');
-    if (userText.includes(query)) return 'profile';
-  }
 
   return null;
 }
@@ -534,24 +529,6 @@ function renderDashboardRecent() {
     </tr>`).join('');
 }
 
-function renderProfile() {
-  if (!state.user) return;
-  document.getElementById('profileContent').innerHTML = `
-    <div class="account-chip" style="margin-bottom:12px;">
-      <div class="sidebar-avatar">${state.user.fullName.charAt(0).toUpperCase()}</div>
-      <div class="account-chip-info">
-        <div class="account-chip-bank">${state.user.fullName}</div>
-        <div class="account-chip-num">${state.user.email}</div>
-      </div>
-    </div>
-    <div style="font-size:14px;display:flex;flex-direction:column;gap:10px;">
-      <div class="flex-center"><span style="color:var(--text-sub);min-width:100px;">Full Name</span><strong>${state.user.fullName}</strong></div>
-      <div class="flex-center"><span style="color:var(--text-sub);min-width:100px;">Email</span><strong>${state.user.email}</strong></div>
-      <div class="flex-center"><span style="color:var(--text-sub);min-width:100px;">Mobile</span><strong>${state.user.mobile}</strong></div>
-      <div class="flex-center"><span style="color:var(--text-sub);min-width:100px;">User ID</span><strong>#${state.user.id}</strong></div>
-    </div>`;
-}
-
 function renderAudits() {
   const tbody = document.getElementById('auditTableBody');
   if (!tbody) return;
@@ -638,9 +615,42 @@ async function deleteBankAccount(id) {
   try {
     await api(`/api/v1/bank-accounts/${id}`, { method: 'DELETE' });
     await refreshAccountsAndSummary();
+    showResult('bankAccountResult', 'Bank account deleted successfully.', true);
   } catch (e) {
-    alert(e.message);
+    showResult('bankAccountResult', e.message, false);
   }
+}
+
+function setLimitInputEnabled(toggleId, inputId) {
+  const toggle = document.getElementById(toggleId);
+  const input = document.getElementById(inputId);
+  if (!toggle || !input) return;
+
+  const enabled = toggle.value === 'true';
+  input.disabled = !enabled;
+  input.required = enabled;
+}
+
+function syncLimitInputs() {
+  setLimitInputEnabled('dailyEnabled', 'dailyLimit');
+  setLimitInputEnabled('monthlyEnabled', 'monthlyLimit');
+  setLimitInputEnabled('perTransactionEnabled', 'perTransactionLimit');
+}
+
+function renderPaymentLimits() {
+  if (!state.paymentLimits) return;
+  const form = document.getElementById('paymentLimitsForm');
+  if (!form) return;
+
+  form.dailyEnabled.value = String(state.paymentLimits.dailyEnabled);
+  form.monthlyEnabled.value = String(state.paymentLimits.monthlyEnabled);
+  form.perTransactionEnabled.value = String(state.paymentLimits.perTransactionEnabled);
+
+  form.dailyLimit.value = state.paymentLimits.dailyLimit ?? '';
+  form.monthlyLimit.value = state.paymentLimits.monthlyLimit ?? '';
+  form.perTransactionLimit.value = state.paymentLimits.perTransactionLimit ?? '';
+
+  syncLimitInputs();
 }
 
 async function refreshAccountsAndSummary() {
@@ -763,17 +773,19 @@ document.getElementById('upiRecipientType').addEventListener('change', function 
 });
 
 async function refreshPaymentData() {
-  const [accountsResult, paymentsResult, auditsResult, summaryResult] = await Promise.allSettled([
+  const [accountsResult, paymentsResult, auditsResult, summaryResult, limitsResult] = await Promise.allSettled([
     api('/api/v1/bank-accounts'),
     api('/api/v1/payments'),
     api('/api/v1/payments/audits'),
-    api('/api/v1/dashboard/summary')
+    api('/api/v1/dashboard/summary'),
+    api('/api/v1/payment-limits')
   ]);
 
   if (accountsResult.status === 'fulfilled') state.accounts = accountsResult.value || [];
   if (paymentsResult.status === 'fulfilled') state.payments = paymentsResult.value || [];
   if (auditsResult.status === 'fulfilled') state.audits = auditsResult.value || [];
   if (summaryResult.status === 'fulfilled') state.summary = summaryResult.value;
+  if (limitsResult.status === 'fulfilled') state.paymentLimits = limitsResult.value;
 
   renderKPIs();
   renderCharts();
@@ -781,6 +793,7 @@ async function refreshPaymentData() {
   renderAudits();
   renderAccounts();
   renderDashboardRecent();
+  renderPaymentLimits();
 }
 
 document.getElementById('upiForm').addEventListener('submit', async (e) => {
@@ -865,32 +878,87 @@ document.getElementById('bankTransferForm').addEventListener('submit', async (e)
       })
     });
     f.reset();
-    showResult('bankTransferResult', `Transfer ${p.status}. ID: ${p.id.slice(0, 8)}...`, true);
-    await loadAll();
+    const paymentSucceeded = p.status === 'SUCCESS';
+    const paymentMessage = paymentSucceeded
+      ? `Transfer completed successfully. ID: ${String(p.id).slice(0, 8)}...`
+      : (p.failureReason || p.errorMessage || `Transfer ${p.status}.`);
+    showResult('bankTransferResult', paymentMessage, paymentSucceeded);
+    try {
+      await refreshPaymentData();
+    } catch (refreshErr) {
+      console.warn('Bank transfer processed, but payment data refresh was partial.', refreshErr);
+    }
   } catch (err) {
     showResult('bankTransferResult', err.message, false);
   }
 });
 
+const paymentLimitsForm = document.getElementById('paymentLimitsForm');
+if (paymentLimitsForm) {
+  paymentLimitsForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    syncLimitInputs();
+
+    try {
+      const response = await api('/api/v1/payment-limits', {
+        method: 'PUT',
+        body: JSON.stringify({
+          dailyEnabled: form.dailyEnabled.value === 'true',
+          dailyLimit: form.dailyEnabled.value === 'true' ? Number(form.dailyLimit.value) : null,
+          monthlyEnabled: form.monthlyEnabled.value === 'true',
+          monthlyLimit: form.monthlyEnabled.value === 'true' ? Number(form.monthlyLimit.value) : null,
+          perTransactionEnabled: form.perTransactionEnabled.value === 'true',
+          perTransactionLimit: form.perTransactionEnabled.value === 'true' ? Number(form.perTransactionLimit.value) : null
+        })
+      });
+
+      state.paymentLimits = response;
+      renderPaymentLimits();
+      showResult('paymentLimitsResult', 'Payment limits updated successfully.', true);
+    } catch (err) {
+      showResult('paymentLimitsResult', err.message, false);
+    }
+  });
+
+  ['dailyEnabled', 'monthlyEnabled', 'perTransactionEnabled'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', syncLimitInputs);
+    }
+  });
+
+  syncLimitInputs();
+}
+
 async function loadAll() {
   state.user = await api('/api/v1/auth/me');
   if (!state.user) return;
 
-  [state.accounts, state.payments, state.audits, state.summary] = await Promise.all([
+  const [accountsResult, paymentsResult, auditsResult, summaryResult, limitsResult] = await Promise.allSettled([
     api('/api/v1/bank-accounts'),
     api('/api/v1/payments'),
     api('/api/v1/payments/audits'),
-    api('/api/v1/dashboard/summary')
+    api('/api/v1/dashboard/summary'),
+    api('/api/v1/payment-limits')
   ]);
+
+  if (accountsResult.status === 'fulfilled') state.accounts = accountsResult.value || [];
+  if (paymentsResult.status === 'fulfilled') state.payments = paymentsResult.value || [];
+  if (auditsResult.status === 'fulfilled') state.audits = auditsResult.value || [];
+  if (summaryResult.status === 'fulfilled') state.summary = summaryResult.value;
+  if (limitsResult.status === 'fulfilled') state.paymentLimits = limitsResult.value;
 
   renderSidebar();
   renderKPIs();
-  renderCharts();
+  if (state.summary) {
+    renderCharts();
+  }
   renderHistory();
   renderAudits();
   renderAccounts();
   renderDashboardRecent();
-  renderProfile();
+  renderPaymentLimits();
   runSearch(state.searchQuery);
 }
 

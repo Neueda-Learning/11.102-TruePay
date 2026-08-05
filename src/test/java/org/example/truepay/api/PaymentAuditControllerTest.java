@@ -10,6 +10,7 @@ import org.example.truepay.model.UserProfile;
 import org.example.truepay.repository.BankAccountRepository;
 import org.example.truepay.repository.AuditLogRepository;
 import org.example.truepay.repository.PaymentRepository;
+import org.example.truepay.repository.PaymentLimitRepository;
 import org.example.truepay.repository.PaymentStatusHistoryRepository;
 import org.example.truepay.repository.UserProfileRepository;
 import org.example.truepay.service.SessionService;
@@ -50,11 +51,15 @@ class PaymentAuditControllerTest {
     @Autowired
     private AuditLogRepository auditLogRepository;
 
+    @Autowired
+    private PaymentLimitRepository paymentLimitRepository;
+
     @BeforeEach
     void cleanDatabase() {
         auditLogRepository.deleteAll();
         paymentStatusHistoryRepository.deleteAll();
         paymentRepository.deleteAll();
+        paymentLimitRepository.deleteAll();
         bankAccountRepository.deleteAll();
         userProfileRepository.deleteAll();
     }

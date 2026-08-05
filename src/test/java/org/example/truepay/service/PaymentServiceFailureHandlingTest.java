@@ -10,6 +10,7 @@ import org.example.truepay.model.ReceiverType;
 import org.example.truepay.model.UserProfile;
 import org.example.truepay.repository.BankAccountRepository;
 import org.example.truepay.repository.AuditLogRepository;
+import org.example.truepay.repository.PaymentLimitRepository;
 import org.example.truepay.repository.PaymentRepository;
 import org.example.truepay.repository.PaymentStatusHistoryRepository;
 import org.example.truepay.repository.UserProfileRepository;
@@ -23,6 +24,7 @@ import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 class PaymentServiceFailureHandlingTest {
@@ -46,6 +48,9 @@ class PaymentServiceFailureHandlingTest {
     private AuditLogRepository auditLogRepository;
 
     @Autowired
+    private PaymentLimitRepository paymentLimitRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @BeforeEach
@@ -53,6 +58,7 @@ class PaymentServiceFailureHandlingTest {
         auditLogRepository.deleteAll();
         paymentStatusHistoryRepository.deleteAll();
         paymentRepository.deleteAll();
+        paymentLimitRepository.deleteAll();
         bankAccountRepository.deleteAll();
         userProfileRepository.deleteAll();
     }
@@ -177,10 +183,9 @@ class PaymentServiceFailureHandlingTest {
                 "123456"
         );
 
-        Payment payment = paymentService.createUpiPayment(user.getId(), request);
-
-        assertEquals(PaymentStatus.FAILED, payment.getStatus());
-        assertEquals("Source account not found", payment.getFailureReason());
+        TruePayException ex = assertThrows(TruePayException.class,
+                () -> paymentService.createUpiPayment(user.getId(), request));
+        assertEquals("Source account not found", ex.getMessage());
     }
 
     @Test

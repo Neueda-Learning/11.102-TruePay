@@ -36,7 +36,7 @@
 
       <div class="nav-section-label">Manage</div>
       <button class="nav-item" data-page="accounts">Bank Accounts</button>
-      <button class="nav-item" data-page="profile">Profile</button>
+      <button class="nav-item" data-page="payment-limits">Payment Limits</button>
       <button class="nav-item" data-page="audits">Audit History</button>
     </nav>
     <div class="sidebar-bottom">
@@ -409,20 +409,60 @@
       </div>
     </div>
 
-    <!-- PAGE: Profile -->
-    <div class="page" id="page-profile">
-      <div class="section-header"><div class="section-title">👤 Profile</div></div>
+    <!-- PAGE: Payment Limits -->
+    <div class="page" id="page-payment-limits">
+      <div class="section-header"><div class="section-title">🔒 Payment Limits</div></div>
       <div class="page-grid-2">
         <div class="panel">
-          <div class="panel-header"><div class="panel-title">Personal Information</div></div>
-          <div id="profileContent"></div>
+          <div class="panel-header"><div class="panel-title">Configure Limits</div></div>
+          <form id="paymentLimitsForm">
+            <div class="form-grid cols-1">
+              <div class="form-group">
+                <label class="form-label" for="dailyEnabled">Daily Limit</label>
+                <select class="form-select" id="dailyEnabled" name="dailyEnabled">
+                  <option value="false">Disabled</option>
+                  <option value="true">Enabled</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="dailyLimit">Daily Limit Amount</label>
+                <input class="form-input" id="dailyLimit" name="dailyLimit" type="number" step="0.01" min="0.01" placeholder="50000.00" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="monthlyEnabled">Monthly Limit</label>
+                <select class="form-select" id="monthlyEnabled" name="monthlyEnabled">
+                  <option value="false">Disabled</option>
+                  <option value="true">Enabled</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="monthlyLimit">Monthly Limit Amount</label>
+                <input class="form-input" id="monthlyLimit" name="monthlyLimit" type="number" step="0.01" min="0.01" placeholder="200000.00" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="perTransactionEnabled">Per-Transaction Limit</label>
+                <select class="form-select" id="perTransactionEnabled" name="perTransactionEnabled">
+                  <option value="false">Disabled</option>
+                  <option value="true">Enabled</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="perTransactionLimit">Per-Transaction Limit Amount</label>
+                <input class="form-input" id="perTransactionLimit" name="perTransactionLimit" type="number" step="0.01" min="0.01" placeholder="25000.00" />
+              </div>
+            </div>
+            <button class="btn btn-primary mt16" type="submit" style="width:100%;">Save Limits</button>
+          </form>
+          <div id="paymentLimitsResult" class="verify-result mt8"></div>
         </div>
         <div class="panel">
-          <div class="panel-header"><div class="panel-title">Account Security</div></div>
+          <div class="panel-header"><div class="panel-title">How Limits Work</div></div>
           <div style="font-size:14px;color:var(--text-sub);line-height:1.7;">
-            <p>🏦 Bank PIN: <strong>6-digit</strong> — per linked bank account</p>
-            <p class="mt8">🧪 Dashboard access opens directly in <strong>single-user mode</strong></p>
-            <p class="mt8">🛡️ Sensitive values remain <strong>hashed</strong> — never stored in plain text</p>
+            <p>Daily limit checks your successful UPI and bank transfers done today.</p>
+            <p class="mt8">Monthly limit checks your successful UPI and bank transfers in the current month.</p>
+            <p class="mt8">Per-transaction limit blocks individual payments above your configured threshold.</p>
           </div>
         </div>
       </div>
