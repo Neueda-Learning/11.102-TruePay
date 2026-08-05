@@ -1,15 +1,8 @@
 package org.example.truepay.service;
 
-import org.example.truepay.api.BankPaymentRequest;
-import org.example.truepay.api.DashboardSummaryResponse;
-import org.example.truepay.api.ReceiverVerificationResponse;
-import org.example.truepay.api.TransactionAuditResponse;
-import org.example.truepay.api.UpiPaymentRequest;
+import org.example.truepay.api.*;
 import org.example.truepay.model.*;
-import org.example.truepay.repository.BankAccountRepository;
-import org.example.truepay.repository.FraudAlertRepository;
-import org.example.truepay.repository.PaymentRepository;
-import org.example.truepay.repository.PaymentStatusHistoryRepository;
+import org.example.truepay.repository.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +26,8 @@ public class PaymentService {
     private final PaymentStatusHistoryRepository statusHistoryRepository;
     private final FraudAlertRepository fraudAlertRepository;
     private final BankAccountRepository bankAccountRepository;
+    private final UserProfileRepository userProfileRepository;
+    private final AuditLogRepository auditLogRepository;
     private final ProfileService profileService;
     private final BankAccountService bankAccountService;
     private final BeneficiaryService beneficiaryService;
@@ -41,6 +36,8 @@ public class PaymentService {
                           PaymentStatusHistoryRepository statusHistoryRepository,
                           FraudAlertRepository fraudAlertRepository,
                           BankAccountRepository bankAccountRepository,
+                          UserProfileRepository userProfileRepository,
+                          AuditLogRepository auditLogRepository,
                           ProfileService profileService,
                           BankAccountService bankAccountService,
                           BeneficiaryService beneficiaryService) {
@@ -48,6 +45,8 @@ public class PaymentService {
         this.statusHistoryRepository = statusHistoryRepository;
         this.fraudAlertRepository = fraudAlertRepository;
         this.bankAccountRepository = bankAccountRepository;
+        this.userProfileRepository = userProfileRepository;
+        this.auditLogRepository = auditLogRepository;
         this.profileService = profileService;
         this.bankAccountService = bankAccountService;
         this.beneficiaryService = beneficiaryService;
@@ -55,20 +54,18 @@ public class PaymentService {
 
     @Transactional
     public Payment createUpiPayment(Long userId, UpiPaymentRequest request) {
-        return createAndProcessPayment(
-                userId,
-                request.sourceAccountId(),
-                request.amount(),
-                request.currency(),
-                request.idempotencyKey(),
-                request.bankPin(),
-                PaymentMethod.UPI,
-                request.destinationUpiId(),
-                null,
-                null,
-                null,
-                null
-        );
+        ReceiverType receiverType = request.destinationUpiId() != null && request.destinationUpiId().endsWith("@mobile")
+                ? ReceiverType.MOBILE_NUMBER
+                : ReceiverType.UPI_ID;
+        return processUpiPayment(userId, request.sourceAccountId(), request.destinationUpiId(), receiverType,
+                request.amount(), request.currency(), request.bankPin());
+    }
+
+    @Transactional
+    public Payment createUpiPayment(Long userId, UpiTransferRequest request) {
+        ReceiverType receiverType = parseUpiReceiverType(request.receiverType());
+        return processUpiPayment(userId, resolveSourceAccountId(userId, request.sourceAccount()), request.receiver(), receiverType,
+                request.amount(), request.currency(), request.bankPin());
     }
 
     @Transactional
@@ -82,52 +79,74 @@ public class PaymentService {
         String destinationIfsc = beneficiary != null ? beneficiary.getIfscCode() : request.destinationIfsc();
         String receiverName = beneficiary != null ? beneficiary.getName() : request.receiverName();
 
-        return createAndProcessPayment(
-                userId,
+        return processBankTransfer(userId,
                 request.sourceAccountId(),
-                request.amount(),
-                request.currency(),
-                request.idempotencyKey(),
-                request.bankPin(),
-                PaymentMethod.BANK,
-                null,
-                receiverName,
                 destinationAccount,
                 destinationIfsc,
-                request.reference()
-        );
+                receiverName,
+                request.amount(),
+                request.currency(),
+                request.bankPin(),
+                request.reference());
+    }
+
+    @Transactional
+    public Payment createBankPayment(Long userId, BankTransferRequest request) {
+        Long sourceAccountId = resolveSourceAccountId(userId, request.sourceAccount());
+        BankAccount destination = bankAccountRepository.findByAccountNumber(request.destinationAccount()).orElse(null);
+        String ifsc = destination != null ? destination.getIfscCode() : null;
+        String receiverName = destination != null ? destination.getUser().getFullName() : null;
+        return processBankTransfer(userId,
+                sourceAccountId,
+                request.destinationAccount(),
+                ifsc,
+                receiverName,
+                request.amount(),
+                request.currency(),
+                request.bankPin(),
+                null);
+    }
+
+    private Payment processUpiPayment(Long userId,
+                                      Long sourceAccountId,
+                                      String receiver,
+                                      ReceiverType receiverType,
+                                      BigDecimal amount,
+                                      String currency,
+                                      String bankPin) {
+        return createAndProcessPayment(userId, sourceAccountId, amount, currency, bankPin,
+                PaymentMethod.UPI, receiverType, receiver, null, null, null, null);
+    }
+
+    private Payment processBankTransfer(Long userId,
+                                        Long sourceAccountId,
+                                        String destinationAccount,
+                                        String destinationIfsc,
+                                        String receiverName,
+                                        BigDecimal amount,
+                                        String currency,
+                                        String bankPin,
+                                        String referenceRemark) {
+        return createAndProcessPayment(userId, sourceAccountId, amount, currency, bankPin,
+                PaymentMethod.BANK_TRANSFER, ReceiverType.BANK_ACCOUNT, null,
+                receiverName, destinationAccount, destinationIfsc, referenceRemark);
     }
 
     private Payment createAndProcessPayment(Long userId,
                                             Long sourceAccountId,
                                             BigDecimal amount,
                                             String currency,
-                                            String idempotencyKey,
                                             String bankPin,
                                             PaymentMethod method,
-                                            String destinationUpi,
+                                            ReceiverType receiverType,
+                                            String receiverValue,
                                             String receiverName,
                                             String destinationAccount,
                                             String destinationIfsc,
                                             String referenceRemark) {
-        Payment existing = paymentRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey).orElse(null);
-        if (existing != null) {
-            return existing;
-        }
-
         UserProfile user = profileService.getUserOrThrow(userId);
-        Payment payment = createPendingPayment(
-                user,
-                amount,
-                currency,
-                idempotencyKey,
-                method,
-                destinationUpi,
-                receiverName,
-                destinationAccount,
-                destinationIfsc,
-                referenceRemark
-        );
+        Payment payment = createPendingPayment(user, amount, currency, method, receiverType,
+                receiverValue, receiverName, destinationAccount, destinationIfsc, referenceRemark);
 
         try {
             BankAccount source = bankAccountRepository.findByIdForUpdate(sourceAccountId).orElse(null);
@@ -140,7 +159,7 @@ public class PaymentService {
             paymentRepository.save(payment);
 
             bankAccountService.validateBankPin(source, bankPin);
-            validatePaymentFields(source, amount, currency, method, destinationUpi, receiverName, destinationAccount, destinationIfsc);
+            validatePaymentFields(source, amount, currency, method, receiverType, receiverValue, destinationAccount, destinationIfsc);
 
             if (runFraudChecks(payment)) {
                 return payment;
@@ -151,21 +170,27 @@ public class PaymentService {
                 return payment;
             }
 
-            Optional<BankAccount> destination = findDestinationAccount(method, destinationAccount, destinationIfsc);
-            if (method == PaymentMethod.BANK && destination.isEmpty()) {
-                failPayment(payment, ErrorCode.INVALID_ACCOUNT, "Destination account not found");
+            BankAccount destination = resolveDestinationAccount(payment, receiverType, receiverValue, destinationAccount, destinationIfsc);
+            if (destination == null) {
+                String reason = method == PaymentMethod.UPI ? "Receiver not found" : "Invalid destination account";
+                failPayment(payment, ErrorCode.INVALID_ACCOUNT, reason);
                 return payment;
             }
 
             source.setBalance(source.getBalance().subtract(amount));
-            destination.ifPresent(receiver -> receiver.setBalance(receiver.getBalance().add(amount)));
+            destination.setBalance(destination.getBalance().add(amount));
 
+            payment.setReceiverName(destination.getUser().getFullName());
+            payment.setDestinationAccount(destination.getAccountNumber());
+            payment.setDestinationIfsc(destination.getIfscCode());
             payment.setStatus(PaymentStatus.SUCCESS);
             payment.setErrorCode(null);
             payment.setErrorMessage(null);
             payment.setFailureReason(null);
+            paymentRepository.save(payment);
             recordStatus(payment, PaymentStatus.SUCCESS, "SYSTEM", "Payment completed successfully");
-            return paymentRepository.save(payment);
+            recordAudit(payment, "PAYMENT_SUCCESS", "Payment of " + payment.getCurrency() + " " + payment.getAmount() + " completed");
+            return payment;
         } catch (TruePayException ex) {
             failPayment(payment, ex.getErrorCode(), ex.getMessage());
             return payment;
@@ -178,9 +203,9 @@ public class PaymentService {
     private Payment createPendingPayment(UserProfile user,
                                          BigDecimal amount,
                                          String currency,
-                                         String idempotencyKey,
                                          PaymentMethod method,
-                                         String destinationUpi,
+                                         ReceiverType receiverType,
+                                         String receiverValue,
                                          String receiverName,
                                          String destinationAccount,
                                          String destinationIfsc,
@@ -188,17 +213,21 @@ public class PaymentService {
         Payment payment = new Payment();
         payment.setUser(user);
         payment.setMethod(method);
+        payment.setReceiverType(receiverType);
         payment.setAmount(amount);
         payment.setCurrency(currency != null ? currency.toUpperCase(Locale.ROOT) : null);
-        payment.setIdempotencyKey(idempotencyKey);
-        payment.setDestinationUpiId(destinationUpi);
+        if (receiverType == ReceiverType.BANK_ACCOUNT) {
+            payment.setDestinationAccount(destinationAccount);
+            payment.setDestinationIfsc(destinationIfsc != null ? destinationIfsc.toUpperCase(Locale.ROOT) : null);
+        } else {
+            payment.setDestinationUpiId(receiverValue);
+        }
         payment.setReceiverName(receiverName);
-        payment.setDestinationAccount(destinationAccount);
-        payment.setDestinationIfsc(destinationIfsc != null ? destinationIfsc.toUpperCase(Locale.ROOT) : null);
         payment.setReferenceRemark(referenceRemark);
         payment.setStatus(PaymentStatus.PENDING);
         paymentRepository.save(payment);
         recordStatus(payment, PaymentStatus.PENDING, "API", "Payment submitted");
+        recordAudit(payment, "PAYMENT_INITIATED", "Payment initiated");
         return payment;
     }
 
@@ -206,57 +235,77 @@ public class PaymentService {
                                        BigDecimal amount,
                                        String currency,
                                        PaymentMethod method,
-                                       String destinationUpi,
-                                       String receiverName,
+                                       ReceiverType receiverType,
+                                       String receiverValue,
                                        String destinationAccount,
                                        String destinationIfsc) {
-        if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(MAX_AMOUNT) > 0) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(MAX_AMOUNT) > 0) {
             throw new TruePayException(ErrorCode.INVALID_AMOUNT, HttpStatus.BAD_REQUEST, "Invalid payment amount");
         }
-
         if (currency == null || !SUPPORTED_CURRENCIES.contains(currency.toUpperCase(Locale.ROOT))) {
             throw new TruePayException(ErrorCode.INVALID_CURRENCY, HttpStatus.BAD_REQUEST,
                     "Unsupported currency. Supported: " + SUPPORTED_CURRENCIES);
         }
 
-        if (method == PaymentMethod.UPI && (destinationUpi == null || destinationUpi.isBlank())) {
-            throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Destination UPI ID is required");
+        if (method == PaymentMethod.UPI) {
+            if (receiverType == ReceiverType.MOBILE_NUMBER) {
+                if (receiverValue == null || !receiverValue.matches("^\\d{10}$")) {
+                    throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Receiver mobile number is invalid");
+                }
+            } else if (receiverValue == null || receiverValue.isBlank()) {
+                throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Receiver UPI ID is required");
+            }
+            return;
         }
 
-        if (method == PaymentMethod.BANK && (destinationAccount == null || destinationAccount.isBlank()
-                || destinationIfsc == null || destinationIfsc.isBlank())) {
-            throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST,
-                    "Destination account and IFSC are required");
-        }
-
-        if (method == PaymentMethod.BANK && (receiverName == null || receiverName.isBlank())) {
-            throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST,
-                    "Receiver name is required");
-        }
-
-        if (method == PaymentMethod.BANK && !destinationAccount.matches("^\\d{8,20}$")) {
+        if (destinationAccount == null || !destinationAccount.matches("^\\d{8,20}$")) {
             throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Receiver account number is invalid");
         }
-
-        if (method == PaymentMethod.BANK && !destinationIfsc.toUpperCase(Locale.ROOT).matches("^[A-Z]{4}0[A-Z0-9]{6}$")) {
+        if (destinationIfsc == null || !destinationIfsc.toUpperCase(Locale.ROOT).matches("^[A-Z]{4}0[A-Z0-9]{6}$")) {
             throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Receiver IFSC format is invalid");
         }
-
-        if (method == PaymentMethod.BANK
-                && sourceAccount.getAccountNumber().equals(destinationAccount)
+        if (sourceAccount.getAccountNumber().equals(destinationAccount)
                 && sourceAccount.getIfscCode().equalsIgnoreCase(destinationIfsc)) {
             throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST,
                     "Sender and receiver accounts must be different");
         }
     }
 
-    private Optional<BankAccount> findDestinationAccount(PaymentMethod method,
-                                                         String destinationAccount,
-                                                         String destinationIfsc) {
-        if (method != PaymentMethod.BANK) {
-            return Optional.empty();
+    private BankAccount resolveDestinationAccount(Payment payment,
+                                                  ReceiverType receiverType,
+                                                  String receiverValue,
+                                                  String destinationAccount,
+                                                  String destinationIfsc) {
+        if (payment.getMethod() == PaymentMethod.BANK_TRANSFER || payment.getMethod() == PaymentMethod.BANK) {
+            return bankAccountRepository.findByAccountNumberAndIfscCode(destinationAccount, destinationIfsc.toUpperCase(Locale.ROOT)).orElse(null);
         }
-        return bankAccountRepository.findByAccountNumberAndIfscCode(destinationAccount, destinationIfsc.toUpperCase(Locale.ROOT));
+
+        UserProfile receiverUser = null;
+        if (receiverType == ReceiverType.MOBILE_NUMBER) {
+            receiverUser = userProfileRepository.findByMobile(receiverValue).orElse(null);
+        } else if (receiverType == ReceiverType.UPI_ID) {
+            receiverUser = findUserByUpiId(receiverValue);
+        }
+
+        if (receiverUser == null) {
+            return null;
+        }
+        return bankAccountRepository.findFirstByUserIdOrderByIdAsc(receiverUser.getId()).orElse(null);
+    }
+
+    private UserProfile findUserByUpiId(String upiId) {
+        if (upiId == null || upiId.isBlank() || !upiId.contains("@")) {
+            return null;
+        }
+        String localPart = upiId.substring(0, upiId.indexOf('@')).toLowerCase(Locale.ROOT);
+        return userProfileRepository.findAll().stream()
+                .filter(user -> {
+                    String email = user.getEmail() == null ? "" : user.getEmail().toLowerCase(Locale.ROOT);
+                    String emailLocal = email.contains("@") ? email.substring(0, email.indexOf('@')) : email;
+                    return emailLocal.equals(localPart);
+                })
+                .findFirst()
+                .orElse(null);
     }
 
     private boolean runFraudChecks(Payment payment) {
@@ -267,30 +316,28 @@ public class PaymentService {
 
         boolean suspiciousAmount = payment.getAmount().compareTo(FRAUD_AMOUNT) > 0;
         boolean suspiciousFrequency = recentPayments > 3;
-
-        if (suspiciousAmount || suspiciousFrequency) {
-            FraudAlert alert = new FraudAlert();
-            alert.setPayment(payment);
-            alert.setRiskScore(suspiciousAmount ? 90 : 75);
-            alert.setReason(suspiciousAmount
-                    ? "High-value transaction detected"
-                    : "Unusual transaction frequency detected");
-            fraudAlertRepository.save(alert);
-
-            failPayment(payment, ErrorCode.SUSPICIOUS_TRANSACTION, alert.getReason());
-            return true;
+        if (!suspiciousAmount && !suspiciousFrequency) {
+            return false;
         }
 
-        return false;
+        FraudAlert alert = new FraudAlert();
+        alert.setPayment(payment);
+        alert.setRiskScore(suspiciousAmount ? 90 : 75);
+        alert.setReason(suspiciousAmount ? "High-value transaction detected" : "Unusual transaction frequency detected");
+        fraudAlertRepository.save(alert);
+        failPayment(payment, ErrorCode.SUSPICIOUS_TRANSACTION, alert.getReason());
+        return true;
     }
 
     private void failPayment(Payment payment, ErrorCode errorCode, String message) {
+        String reason = message == null || message.isBlank() ? "Payment processing failed" : message;
         payment.setStatus(PaymentStatus.FAILED);
         payment.setErrorCode(errorCode);
-        payment.setErrorMessage(message);
-        payment.setFailureReason(message);
-        recordStatus(payment, PaymentStatus.FAILED, "SYSTEM", message);
+        payment.setErrorMessage(reason);
+        payment.setFailureReason(reason);
         paymentRepository.save(payment);
+        recordStatus(payment, PaymentStatus.FAILED, "SYSTEM", reason);
+        recordAudit(payment, "PAYMENT_FAILED", reason);
     }
 
     @Transactional
@@ -306,8 +353,10 @@ public class PaymentService {
         payment.setFailureReason(cancellationReason);
         payment.setErrorCode(null);
         payment.setErrorMessage(cancellationReason);
+        paymentRepository.save(payment);
         recordStatus(payment, PaymentStatus.CANCELLED, "USER", cancellationReason);
-        return paymentRepository.save(payment);
+        recordAudit(payment, "PAYMENT_CANCELLED", cancellationReason);
+        return payment;
     }
 
     private void recordStatus(Payment payment, PaymentStatus status, String actor, String notes) {
@@ -320,6 +369,15 @@ public class PaymentService {
         history.setNotes(notes);
 
         statusHistoryRepository.save(history);
+    }
+
+    private void recordAudit(Payment payment, String action, String description) {
+        AuditLog auditLog = new AuditLog();
+        auditLog.setUser(payment.getUser());
+        auditLog.setTransactionId(payment.getTransactionId());
+        auditLog.setAction(action);
+        auditLog.setDescription(description);
+        auditLogRepository.save(auditLog);
     }
 
     public Payment getPayment(Long userId, UUID paymentId) {
@@ -336,6 +394,23 @@ public class PaymentService {
             return paymentRepository.findByUserIdOrderByCreatedAtDesc(userId);
         }
         return paymentRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, status);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentHistoryResponse> getPaymentHistory(Long userId) {
+        return paymentRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(payment -> new PaymentHistoryResponse(
+                        payment.getTransactionId(),
+                        payment.getCreatedAt(),
+                        payment.getMethod(),
+                        payment.getSourceAccount() != null ? maskAccount(payment.getSourceAccount().getAccountNumber()) : "-",
+                        resolveReceiver(payment),
+                        payment.getAmount(),
+                        payment.getCurrency(),
+                        payment.getStatus(),
+                        payment.getFailureReason()
+                ))
+                .toList();
     }
 
     public List<PaymentStatusHistory> getHistory(Long userId, UUID paymentId) {
@@ -358,10 +433,23 @@ public class PaymentService {
                             history.getTriggeredBy(),
                             history.getChangedAt(),
                             history.getNotes(),
-                            payment.getIdempotencyKey(),
                             payment.getReferenceRemark()
                     );
                 })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AuditHistoryResponse> getAuditHistoryRecords(Long userId) {
+        return auditLogRepository.findByUserIdOrderByTimestampDesc(userId).stream()
+                .map(log -> new AuditHistoryResponse(
+                        log.getId(),
+                        log.getUser().getId(),
+                        log.getTransactionId(),
+                        log.getAction(),
+                        log.getDescription(),
+                        log.getTimestamp()
+                ))
                 .toList();
     }
 
@@ -377,8 +465,8 @@ public class PaymentService {
     }
 
     public ReceiverVerificationResponse verifyReceiver(String accountNumber, String ifscCode) {
-        if (!accountNumber.matches("^\\d{8,12}$")) {
-            throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Account number must be 8-12 digits");
+        if (!accountNumber.matches("^\\d{8,20}$")) {
+            throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Account number must be 8-20 digits");
         }
 
         String normalizedIfsc = ifscCode.toUpperCase(Locale.ROOT);
@@ -388,20 +476,50 @@ public class PaymentService {
 
         return bankAccountRepository.findByAccountNumberAndIfscCode(accountNumber, normalizedIfsc)
                 .map(account -> new ReceiverVerificationResponse(true, account.getUser().getFullName(), "Receiver verified in TruePay"))
-                .orElseGet(() -> new ReceiverVerificationResponse(false, "External account", "Receiver not found in TruePay, transfer will be simulated"));
+                .orElseGet(() -> new ReceiverVerificationResponse(false, "Unknown receiver", "Receiver not found in TruePay"));
+    }
+
+    private ReceiverType parseUpiReceiverType(String receiverType) {
+        if (receiverType == null) {
+            return ReceiverType.UPI_ID;
+        }
+        return switch (receiverType.trim().toUpperCase(Locale.ROOT)) {
+            case "UPI", "UPI_ID" -> ReceiverType.UPI_ID;
+            case "MOBILE", "MOBILE_NUMBER" -> ReceiverType.MOBILE_NUMBER;
+            default -> throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Invalid receiver type");
+        };
+    }
+
+    private Long resolveSourceAccountId(Long userId, String sourceAccountNumber) {
+        if (sourceAccountNumber == null || sourceAccountNumber.isBlank()) {
+            throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Source account not found");
+        }
+        BankAccount account = bankAccountRepository.findByAccountNumber(sourceAccountNumber)
+                .orElseThrow(() -> new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Source account not found"));
+        if (!account.getUser().getId().equals(userId)) {
+            throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Source account not found");
+        }
+        return account.getId();
     }
 
     private String resolveReceiver(Payment payment) {
         if (payment.getReceiverName() != null && !payment.getReceiverName().isBlank()) {
             return payment.getReceiverName();
         }
+        if (payment.getReceiverType() == ReceiverType.BANK_ACCOUNT) {
+            return payment.getDestinationAccount() != null ? maskAccount(payment.getDestinationAccount()) : "-";
+        }
         if (payment.getDestinationUpiId() != null && !payment.getDestinationUpiId().isBlank()) {
             return payment.getDestinationUpiId();
         }
-        if (payment.getDestinationAccount() != null && !payment.getDestinationAccount().isBlank()) {
-            return payment.getDestinationAccount();
-        }
         return "-";
+    }
+
+    private String maskAccount(String accountNumber) {
+        if (accountNumber == null || accountNumber.length() < 4) {
+            return "-";
+        }
+        return "****" + accountNumber.substring(accountNumber.length() - 4);
     }
 }
 

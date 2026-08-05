@@ -64,7 +64,7 @@ public class BankAccountService {
     }
 
     public void validateBankPin(BankAccount account, String bankPin) {
-        if (!passwordEncoder.matches(bankPin, account.getBankPinHash())) {
+        if (bankPin == null || bankPin.isBlank() || !passwordEncoder.matches(bankPin, account.getBankPinHash())) {
             throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, "Invalid bank PIN");
         }
     }

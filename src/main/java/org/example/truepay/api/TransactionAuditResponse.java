@@ -17,7 +17,6 @@ public record TransactionAuditResponse(
         String triggeredBy,
         Instant changedAt,
         String notes,
-        String idempotencyKey,
         String referenceRemark
 ) {
 }

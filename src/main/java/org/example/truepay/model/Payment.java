@@ -9,15 +9,16 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "payments", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_payment_user_idempotency", columnNames = {"user_id", "idempotency_key"})
-})
+@Table(name = "payments")
 public class Payment {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @JdbcTypeCode(SqlTypes.CHAR)
     @Column(length = 36, updatable = false, nullable = false)
     private UUID id;
+
+    @Column(name = "transaction_id", length = 32, nullable = false, unique = true)
+    private String transactionId;
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
@@ -37,9 +38,6 @@ public class Payment {
     @Column(nullable = false, length = 3)
     private String currency;
 
-    @Column(nullable = false)
-    private String idempotencyKey;
-
     private String destinationUpiId;
 
     private String destinationAccount;
@@ -49,6 +47,10 @@ public class Payment {
     private String receiverName;
 
     private String referenceRemark;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ReceiverType receiverType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -70,6 +72,9 @@ public class Payment {
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();
+        if (transactionId == null || transactionId.isBlank()) {
+            transactionId = "TXN" + now.toEpochMilli() + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        }
         createdAt = now;
         updatedAt = now;
     }
@@ -81,6 +86,14 @@ public class Payment {
 
     public UUID getId() {
         return id;
+    }
+
+    public String getTransactionId() {
+        return transactionId;
+    }
+
+    public void setTransactionId(String transactionId) {
+        this.transactionId = transactionId;
     }
 
     public UserProfile getUser() {
@@ -123,13 +136,6 @@ public class Payment {
         this.currency = currency;
     }
 
-    public String getIdempotencyKey() {
-        return idempotencyKey;
-    }
-
-    public void setIdempotencyKey(String idempotencyKey) {
-        this.idempotencyKey = idempotencyKey;
-    }
 
     public String getDestinationUpiId() {
         return destinationUpiId;
@@ -169,6 +175,14 @@ public class Payment {
 
     public void setReferenceRemark(String referenceRemark) {
         this.referenceRemark = referenceRemark;
+    }
+
+    public ReceiverType getReceiverType() {
+        return receiverType;
+    }
+
+    public void setReceiverType(ReceiverType receiverType) {
+        this.receiverType = receiverType;
     }
 
     public PaymentStatus getStatus() {
