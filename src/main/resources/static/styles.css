@@ -88,7 +88,17 @@ a { text-decoration: none; color: inherit; }
 .logo-text { font-size: 18px; font-weight: 700; }
 .logo-tag { font-size: 10px; color: var(--text-sub); }
 
-.sidebar-nav { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; overflow: hidden; transition: max-height .22s ease, opacity .18s ease, padding .18s ease; max-height: 70vh; }
+.sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transition: max-height .22s ease, opacity .18s ease, padding .18s ease;
+}
 .nav-section-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-sub); padding: 12px 8px 4px; }
 
 
