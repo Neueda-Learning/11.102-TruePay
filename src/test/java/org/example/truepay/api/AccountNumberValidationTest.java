@@ -24,9 +24,11 @@ class AccountNumberValidationTest {
     @Test
     void rejectsBankAccountWhenAccountNumberTooShort() {
         BankAccountRequest request = new BankAccountRequest(
+                "John Doe",
                 "HDFC Bank",
                 "1234567",  // 7 digits - too short
                 "HDFC0001234",
+                "SAVINGS",
                 "123456",
                 BigDecimal.valueOf(10000)
         );
@@ -41,9 +43,11 @@ class AccountNumberValidationTest {
     @Test
     void rejectsBankAccountWhenAccountNumberTooLong() {
         BankAccountRequest request = new BankAccountRequest(
+                "John Doe",
                 "HDFC Bank",
                 "1234567890123",  // 13 digits - too long
                 "HDFC0001234",
+                "SAVINGS",
                 "123456",
                 BigDecimal.valueOf(10000)
         );
@@ -58,9 +62,11 @@ class AccountNumberValidationTest {
     @Test
     void acceptsBankAccountWhenAccountNumberIn8DigitRange() {
         BankAccountRequest request = new BankAccountRequest(
+                "John Doe",
                 "HDFC Bank",
                 "12345678",  // 8 digits - valid
                 "HDFC0001234",
+                "SAVINGS",
                 "123456",
                 BigDecimal.valueOf(10000)
         );
@@ -73,9 +79,11 @@ class AccountNumberValidationTest {
     @Test
     void acceptsBankAccountWhenAccountNumberIn12DigitRange() {
         BankAccountRequest request = new BankAccountRequest(
+                "John Doe",
                 "HDFC Bank",
                 "123456789012",  // 12 digits - valid
                 "HDFC0001234",
+                "SAVINGS",
                 "123456",
                 BigDecimal.valueOf(10000)
         );
