@@ -5,6 +5,7 @@ import org.example.truepay.model.Payment;
 import org.example.truepay.model.PaymentMethod;
 import org.example.truepay.model.UserProfile;
 import org.example.truepay.repository.BankAccountRepository;
+import org.example.truepay.repository.AuditLogRepository;
 import org.example.truepay.repository.FraudAlertRepository;
 import org.example.truepay.repository.PaymentRepository;
 import org.example.truepay.repository.PaymentStatusHistoryRepository;
@@ -51,6 +52,9 @@ class UpiPaymentControllerTest {
     private FraudAlertRepository fraudAlertRepository;
 
     @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private UserProfile user;
@@ -59,6 +63,7 @@ class UpiPaymentControllerTest {
     @BeforeEach
     void cleanAndSeed() {
         fraudAlertRepository.deleteAll();
+        auditLogRepository.deleteAll();
         paymentStatusHistoryRepository.deleteAll();
         paymentRepository.deleteAll();
         bankAccountRepository.deleteAll();
@@ -82,6 +87,25 @@ class UpiPaymentControllerTest {
         source.setAccountType("SAVINGS");
         source.setBalance(new BigDecimal("10000.00"));
         source = bankAccountRepository.save(source);
+
+        UserProfile receiver = new UserProfile();
+        receiver.setFullName("Coffee Merchant");
+        receiver.setEmail("coffee@truepay.local");
+        receiver.setMobile("9876543210");
+        receiver.setAppPinHash(passwordEncoder.encode("4321"));
+        receiver.setPasswordHash(passwordEncoder.encode("merchant-pass"));
+        receiver = userProfileRepository.save(receiver);
+
+        BankAccount receiverAccount = new BankAccount();
+        receiverAccount.setUser(receiver);
+        receiverAccount.setAccountHolderName(receiver.getFullName());
+        receiverAccount.setBankName("SBI");
+        receiverAccount.setAccountNumber("999988887777");
+        receiverAccount.setIfscCode("SBIN0004321");
+        receiverAccount.setBankPinHash(passwordEncoder.encode("654321"));
+        receiverAccount.setAccountType("SAVINGS");
+        receiverAccount.setBalance(new BigDecimal("1000.00"));
+        bankAccountRepository.save(receiverAccount);
     }
 
     @Test
@@ -92,7 +116,6 @@ class UpiPaymentControllerTest {
                   "amount": 250.00,
                   "currency": "INR",
                   "destinationUpiId": "coffee@upi",
-                  "idempotencyKey": "upi-no-app-pin-001",
                   "bankPin": "123456"
                 }
                 """.formatted(source.getId());
@@ -121,7 +144,6 @@ class UpiPaymentControllerTest {
                   "amount": 100.00,
                   "currency": "INR",
                   "destinationUpiId": "merchant@upi",
-                  "idempotencyKey": "upi-invalid-pin-001",
                   "bankPin": "1234"
                 }
                 """.formatted(source.getId());
@@ -135,7 +157,7 @@ class UpiPaymentControllerTest {
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("bankPin")));
 
         assertFalse(paymentRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
-                        .anyMatch(p -> "upi-invalid-pin-001".equals(p.getIdempotencyKey())),
+                        .anyMatch(p -> "merchant@upi".equals(p.getDestinationUpiId())),
                 "Invalid requests should not persist a payment");
     }
 }

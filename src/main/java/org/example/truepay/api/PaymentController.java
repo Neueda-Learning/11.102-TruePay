@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/payments")
+@RequestMapping({"/api/v1/payments", "/payments"})
 public class PaymentController {
     private final PaymentService paymentService;
     private final SessionService sessionService;
@@ -29,8 +29,20 @@ public class PaymentController {
         return toResponse(paymentService.createUpiPayment(userId, request));
     }
 
+    @PostMapping("/upi")
+    public PaymentResponse payToUpiV2(@Valid @RequestBody UpiTransferRequest request, HttpSession session) {
+        Long userId = sessionService.requireUserId(session);
+        return toResponse(paymentService.createUpiPayment(userId, request));
+    }
+
     @PostMapping("/pay-to-bank")
     public PaymentResponse payToBank(@Valid @RequestBody BankPaymentRequest request, HttpSession session) {
+        Long userId = sessionService.requireUserId(session);
+        return toResponse(paymentService.createBankPayment(userId, request));
+    }
+
+    @PostMapping("/bank-transfer")
+    public PaymentResponse bankTransfer(@Valid @RequestBody BankTransferRequest request, HttpSession session) {
         Long userId = sessionService.requireUserId(session);
         return toResponse(paymentService.createBankPayment(userId, request));
     }
@@ -63,6 +75,13 @@ public class PaymentController {
         return paymentService.listPayments(userId, status).stream().map(this::toResponse).toList();
     }
 
+    @GetMapping("/history/{userId}")
+    public List<PaymentHistoryResponse> paymentHistory(@PathVariable Long userId, HttpSession session) {
+        Long sessionUserId = sessionService.requireUserId(session);
+        validateRequestedUser(userId, sessionUserId);
+        return paymentService.getPaymentHistory(userId);
+    }
+
     @GetMapping("/{paymentId}/history")
     public List<StatusHistoryResponse> history(@PathVariable UUID paymentId, HttpSession session) {
         Long userId = sessionService.requireUserId(session);
@@ -90,7 +109,7 @@ public class PaymentController {
 
         return new PaymentResponse(
                 payment.getId(),
-                payment.getId().toString(),
+                payment.getTransactionId(),
                 payment.getUser().getId(),
                 payment.getSourceAccount() != null ? payment.getSourceAccount().getId() : null,
                 payment.getMethod(),
@@ -109,6 +128,16 @@ public class PaymentController {
                 payment.getCreatedAt(),
                 payment.getUpdatedAt()
         );
+    }
+
+    private void validateRequestedUser(Long requestedUserId, Long sessionUserId) {
+        if (!requestedUserId.equals(sessionUserId)) {
+            throw new org.example.truepay.service.TruePayException(
+                    org.example.truepay.model.ErrorCode.UNAUTHORIZED,
+                    HttpStatus.FORBIDDEN,
+                    "User mismatch"
+            );
+        }
     }
 }
 

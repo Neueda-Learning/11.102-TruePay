@@ -6,8 +6,10 @@ import org.example.truepay.model.BankAccount;
 import org.example.truepay.model.Payment;
 import org.example.truepay.model.PaymentMethod;
 import org.example.truepay.model.PaymentStatus;
+import org.example.truepay.model.ReceiverType;
 import org.example.truepay.model.UserProfile;
 import org.example.truepay.repository.BankAccountRepository;
+import org.example.truepay.repository.AuditLogRepository;
 import org.example.truepay.repository.PaymentRepository;
 import org.example.truepay.repository.PaymentStatusHistoryRepository;
 import org.example.truepay.repository.UserProfileRepository;
@@ -18,7 +20,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,10 +43,14 @@ class PaymentServiceFailureHandlingTest {
     private UserProfileRepository userProfileRepository;
 
     @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void cleanDatabase() {
+        auditLogRepository.deleteAll();
         paymentStatusHistoryRepository.deleteAll();
         paymentRepository.deleteAll();
         bankAccountRepository.deleteAll();
@@ -67,7 +72,6 @@ class PaymentServiceFailureHandlingTest {
                 destination.getAccountNumber(),
                 destination.getIfscCode(),
                 "rent",
-                "success-case-001",
                 "123456"
         );
 
@@ -88,7 +92,6 @@ class PaymentServiceFailureHandlingTest {
                 new BigDecimal("200.00"),
                 "INR",
                 "merchant@upi",
-                "insufficient-case-001",
                 "123456"
         );
 
@@ -114,15 +117,52 @@ class PaymentServiceFailureHandlingTest {
                 "999988887777",
                 "HDFC0009999",
                 "test",
-                "invalid-destination-case-001",
                 "123456"
         );
 
         Payment payment = paymentService.createBankPayment(user.getId(), request);
 
         assertEquals(PaymentStatus.FAILED, payment.getStatus());
-        assertEquals("Destination account not found", payment.getFailureReason());
+        assertEquals("Invalid destination account", payment.getFailureReason());
         assertEquals(new BigDecimal("500.00"), reloadAccount(source.getId()).getBalance());
+    }
+
+    @Test
+    void wrongBankPinMarksPaymentFailed() {
+        UserProfile user = createUser("wrong-pin@truepay.local", "9999999007");
+        BankAccount source = createAccount(user, "111122223338", "HDFC0001116", new BigDecimal("500.00"), "123456");
+
+        UpiPaymentRequest request = new UpiPaymentRequest(
+                source.getId(),
+                new BigDecimal("100.00"),
+                "INR",
+                "merchant@upi",
+                "000000"
+        );
+
+        Payment payment = paymentService.createUpiPayment(user.getId(), request);
+
+        assertEquals(PaymentStatus.FAILED, payment.getStatus());
+        assertEquals("Invalid bank PIN", payment.getFailureReason());
+    }
+
+    @Test
+    void missingUpiReceiverMarksPaymentFailed() {
+        UserProfile user = createUser("missing-upi@truepay.local", "9999999008");
+        BankAccount source = createAccount(user, "111122223339", "HDFC0001117", new BigDecimal("500.00"), "123456");
+
+        UpiPaymentRequest request = new UpiPaymentRequest(
+                source.getId(),
+                new BigDecimal("100.00"),
+                "INR",
+                "notfound@upi",
+                "123456"
+        );
+
+        Payment payment = paymentService.createUpiPayment(user.getId(), request);
+
+        assertEquals(PaymentStatus.FAILED, payment.getStatus());
+        assertEquals("Receiver not found", payment.getFailureReason());
     }
 
     @Test
@@ -134,7 +174,6 @@ class PaymentServiceFailureHandlingTest {
                 new BigDecimal("100.00"),
                 "INR",
                 "merchant@upi",
-                "missing-source-case-001",
                 "123456"
         );
 
@@ -154,7 +193,6 @@ class PaymentServiceFailureHandlingTest {
                 BigDecimal.ZERO,
                 "INR",
                 "merchant@upi",
-                "invalid-amount-case-001",
                 "123456"
         );
 
@@ -174,9 +212,9 @@ class PaymentServiceFailureHandlingTest {
         pendingPayment.setUser(user);
         pendingPayment.setSourceAccount(source);
         pendingPayment.setMethod(PaymentMethod.UPI);
+        pendingPayment.setReceiverType(ReceiverType.UPI_ID);
         pendingPayment.setAmount(new BigDecimal("50.00"));
         pendingPayment.setCurrency("INR");
-        pendingPayment.setIdempotencyKey("pending-cancel-case-001-" + UUID.randomUUID());
         pendingPayment.setDestinationUpiId("merchant@upi");
         pendingPayment.setStatus(PaymentStatus.PENDING);
         pendingPayment = paymentRepository.save(pendingPayment);

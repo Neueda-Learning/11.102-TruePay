@@ -27,7 +27,6 @@ class UpiPaymentRequestValidationTest {
                 new BigDecimal("250.00"),
                 "INR",
                 "merchant@upi",
-                "upi-20260805-001",
                 "123456"
         );
     }
@@ -49,27 +48,11 @@ class UpiPaymentRequestValidationTest {
                 new BigDecimal("250.00"),
                 "INR",
                 "",
-                "upi-20260805-001",
                 "123456"
         );
 
         Set<ConstraintViolation<UpiPaymentRequest>> violations = validator.validate(request);
         assertTrue(hasViolationOn(violations, "destinationUpiId"));
-    }
-
-    @Test
-    void rejectsBlankIdempotencyKey() {
-        UpiPaymentRequest request = new UpiPaymentRequest(
-                1L,
-                new BigDecimal("250.00"),
-                "INR",
-                "merchant@upi",
-                "",
-                "123456"
-        );
-
-        Set<ConstraintViolation<UpiPaymentRequest>> violations = validator.validate(request);
-        assertTrue(hasViolationOn(violations, "idempotencyKey"));
     }
 
     @Test
@@ -79,7 +62,6 @@ class UpiPaymentRequestValidationTest {
                 new BigDecimal("250.00"),
                 "INR",
                 "merchant@upi",
-                "upi-20260805-001",
                 "12A45"
         );
 
@@ -94,7 +76,6 @@ class UpiPaymentRequestValidationTest {
                 new BigDecimal("250.00"),
                 "inr",
                 "merchant@upi",
-                "upi-20260805-001",
                 "123456"
         );
 

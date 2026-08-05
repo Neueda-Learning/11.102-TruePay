@@ -77,7 +77,7 @@ function fmtDate(d) {
 }
 
 function statusIcon(s) {
-  return { COMPLETED: 'OK', FAILED: 'X', CREATED: 'NEW', VALIDATED: 'CHK', SENT: 'SENT' }[s] || '...';
+  return { SUCCESS: 'OK', FAILED: 'X', PENDING: 'NEW', CANCELLED: 'CXL' }[s] || '...';
 }
 
 function toSearchText(value) {
@@ -127,6 +127,10 @@ function accountMatchesQuery(account, query) {
     account.balance
   ].map(toSearchText).join(' ');
   return haystack.includes(query);
+}
+
+function findAccountById(accountId) {
+  return state.accounts.find((account) => Number(account.id) === Number(accountId)) || null;
 }
 
 function getSearchTargetPage(query) {
@@ -251,7 +255,7 @@ function renderCharts() {
   });
 
   const upiCount = state.payments.filter((p) => p.method === 'UPI').length;
-  const bankCount = state.payments.filter((p) => p.method === 'BANK').length;
+  const bankCount = state.payments.filter((p) => p.method === 'BANK' || p.method === 'BANK_TRANSFER').length;
   state.charts.methodChart = new Chart(document.getElementById('methodChart'), {
     type: 'bar',
     data: { labels: ['UPI', 'Bank Transfer'], datasets: [{ data: [upiCount, bankCount], backgroundColor: ['rgba(124,92,252,.8)', 'rgba(79,140,255,.8)'] }] },
@@ -438,7 +442,6 @@ function renderAudits() {
       <td>${audit.triggeredBy}</td>
       <td>
         <div>${audit.notes || '-'}</div>
-        ${audit.idempotencyKey ? `<div class="audit-reference">Key: ${audit.idempotencyKey}</div>` : ''}
         ${audit.referenceRemark ? `<div class="audit-reference">Ref: ${audit.referenceRemark}</div>` : ''}
       </td>
       <td><button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="openAuditPayment('${audit.paymentId}')">Transaction</button></td>
@@ -567,30 +570,39 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
   const f = e.target;
   const recipientType = document.getElementById('upiRecipientType').value;
 
-  let destinationUpiId = '';
+  let receiver = '';
+  let receiverType = 'UPI';
   if (recipientType === 'mobile') {
     const mobile = document.getElementById('mobileInput').value.trim();
     if (!/^\d{10}$/.test(mobile)) {
       showResult('upiResult', 'Enter a valid 10-digit mobile number.', false);
       return;
     }
-    destinationUpiId = mobile + '@mobile';
+    receiver = mobile;
+    receiverType = 'MOBILE_NUMBER';
   } else {
-    destinationUpiId = document.getElementById('upiIdInput').value.trim();
-    if (!destinationUpiId) {
+    receiver = document.getElementById('upiIdInput').value.trim();
+    if (!receiver) {
       showResult('upiResult', 'Enter a UPI ID.', false);
       return;
     }
   }
 
+  const source = findAccountById(f.sourceAccountId.value);
+  if (!source) {
+    showResult('upiResult', 'Select a valid source account.', false);
+    return;
+  }
+
   try {
-    const p = await api('/api/v1/payments/pay-to-upi', {
+    const p = await api('/api/v1/payments/upi', {
       method: 'POST',
       body: JSON.stringify({
-        sourceAccountId: Number(f.sourceAccountId.value),
+        sourceAccount: source.accountNumber,
+        receiverType,
+        receiver,
         amount: Number(f.amount.value),
         currency: f.currency.value,
-        destinationUpiId,
         bankPin: f.bankPin.value
       })
     });
@@ -608,18 +620,21 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
 document.getElementById('bankTransferForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target;
+  const destinationAccount = f.destinationAccount ? f.destinationAccount.value : null;
+  const source = findAccountById(f.sourceAccountId.value);
+  if (!source) {
+    showResult('bankTransferResult', 'Select a valid source account.', false);
+    return;
+  }
+
   try {
-    const p = await api('/api/v1/payments/pay-to-bank', {
+    const p = await api('/api/v1/payments/bank-transfer', {
       method: 'POST',
       body: JSON.stringify({
-        sourceAccountId: Number(f.sourceAccountId.value),
+        sourceAccount: source.accountNumber,
+        destinationAccount,
         amount: Number(f.amount.value),
         currency: f.currency.value,
-        receiverName: f.receiverName.value || null,
-        destinationAccount: f.destinationAccount.value || null,
-        destinationIfsc: f.destinationIfsc.value || null,
-        reference: f.reference.value || null,
-        appPin: f.appPin.value,
         bankPin: f.bankPin.value
       })
     });
@@ -664,4 +679,6 @@ window.navigate = navigate;
 
 applyTheme(getTheme());
 loadAll().catch((err) => console.error('Failed to load dashboard', err));
+
+
 

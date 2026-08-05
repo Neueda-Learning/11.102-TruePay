@@ -15,10 +15,9 @@ TruePay is a Spring Boot payments platform with a REST API and a lightweight das
 - Bank-to-bank transfer card with sender account selection
 - Beneficiary management (add/list/delete) for repeat transfers
 - Payment lifecycle and audit history:
-  - `CREATED -> VALIDATED -> SENT -> COMPLETED`
-  - `FAILED` can happen at any stage
+  - `PENDING -> SUCCESS`
+  - `FAILED` and `CANCELLED`
 - Fraud checks for high-value and high-frequency transactions
-- System-generated idempotency key per payment (visible in audit)
 - Dashboard graphs (status distribution, fraud/failure, payment volume)
 - OpenAPI docs at `/swagger-ui`
 
@@ -29,6 +28,7 @@ TruePay is a Spring Boot payments platform with a REST API and a lightweight das
   - selected beneficiary, or
   - manual input (`receiverName`, `destinationAccount`, `destinationIfsc`)
 - Sender enters amount, optional reference, app PIN (4 digits), bank PIN (6 digits)
+- Sender enters amount, optional reference, and bank PIN (6 digits)
 - System validates and performs fraud checks
 - If receiver account exists in TruePay, receiver balance is credited
 - If receiver account is external, transfer is simulated and completed
@@ -85,10 +85,19 @@ Then open:
 
 - `POST /api/v1/payments/pay-to-upi`
 - `POST /api/v1/payments/pay-to-bank`
+- `POST /api/v1/payments/upi`
+- `POST /api/v1/payments/bank-transfer`
+- `POST /api/v1/payments/{paymentId}/cancel`
 - `GET /api/v1/payments/verify-receiver?accountNumber=...&ifscCode=...`
 - `GET /api/v1/payments`
 - `GET /api/v1/payments/{paymentId}`
 - `GET /api/v1/payments/{paymentId}/history`
+- `GET /api/v1/payments/history/{userId}`
+
+### Audit
+
+- `GET /api/v1/payments/audits`
+- `GET /api/v1/audit/history/{userId}`
 
 ### Dashboard Summary
 
@@ -109,7 +118,7 @@ Then open:
 
 - The removed `login.html` and `register.html` pages now redirect to `dashboard.html` for backward compatibility.
 - Local/demo sessions automatically use a default profile seeded on first access.
-- Demo app PIN for transaction flows: `1234`
+- Demo bank PIN is required for transaction flows
 
 ## Next Enhancements
 

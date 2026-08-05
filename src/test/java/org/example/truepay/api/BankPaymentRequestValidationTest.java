@@ -31,7 +31,6 @@ class BankPaymentRequestValidationTest {
                 "123456789012",
                 "HDFC0001234",
                 "August rent",
-                "bank-20260805-001",
                 "123456"
         );
     }
@@ -45,7 +44,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 null, new BigDecimal("500.00"), "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -63,7 +62,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, null, "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -75,7 +74,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, BigDecimal.ZERO, "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -87,7 +86,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("0.00"), "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -99,7 +98,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("0.01"), "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -111,7 +110,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("999999.99"), "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -123,7 +122,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("500.00"), "",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -135,7 +134,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("500.00"), "inr",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -147,7 +146,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("500.00"), "IN",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -159,7 +158,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("500.00"), "INRR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -177,7 +176,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("500.00"), "USD",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "123456"
+                null, "123456"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -185,23 +184,11 @@ class BankPaymentRequestValidationTest {
     }
 
     @Test
-    void rejectsBlankIdempotencyKey() {
-        BankPaymentRequest request = new BankPaymentRequest(
-                1L, new BigDecimal("500.00"), "INR",
-                null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "", "123456"
-        );
-
-        Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
-        assertTrue(hasViolationOn(violations, "idempotencyKey"));
-    }
-
-    @Test
     void rejectsWhenBankPinHasFewDigits() {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("500.00"), "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "1234"
+                null, "1234"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -213,7 +200,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("500.00"), "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "1234567"
+                null, "1234567"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -225,7 +212,7 @@ class BankPaymentRequestValidationTest {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("500.00"), "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", "12345a"
+                null, "12345a"
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
@@ -239,15 +226,15 @@ class BankPaymentRequestValidationTest {
     }
 
     @Test
-    void acceptsNullBankPin() {
+    void rejectsNullBankPin() {
         BankPaymentRequest request = new BankPaymentRequest(
                 1L, new BigDecimal("500.00"), "INR",
                 null, "Rahul Kumar", "123456789012", "HDFC0001234",
-                null, "bank-20260805-001", null
+                null, null
         );
 
         Set<ConstraintViolation<BankPaymentRequest>> violations = validator.validate(request);
-        assertFalse(hasViolationOn(violations, "bankPin"), "null bank PIN should pass bean validation (@Pattern skips null)");
+        assertTrue(hasViolationOn(violations, "bankPin"), "null bank PIN should be rejected");
     }
 
     @Test
@@ -259,7 +246,6 @@ class BankPaymentRequestValidationTest {
                 null,
                 null,
                 null,
-                "bank-20260805-001",
                 "123456"
         );
 
