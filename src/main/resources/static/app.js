@@ -613,7 +613,6 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
         currency: f.currency.value,
         destinationUpiId,
         idempotencyKey: f.idempotencyKey.value,
-        appPin: f.appPin.value,
         bankPin: f.bankPin.value
       })
     });
