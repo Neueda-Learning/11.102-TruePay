@@ -49,9 +49,11 @@ public class BankAccountController {
     private BankAccountResponse toResponse(BankAccount account) {
         return new BankAccountResponse(
                 account.getId(),
+                account.getAccountHolderName(),
                 account.getBankName(),
                 account.getAccountNumber(),
                 account.getIfscCode(),
+                account.getAccountType(),
                 account.getBalance()
         );
     }

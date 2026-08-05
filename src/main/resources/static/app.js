@@ -187,6 +187,7 @@ function renderAccounts() {
       <div class="account-chip-info">
         <div class="account-chip-bank">${a.bankName}</div>
         <div class="account-chip-num">${maskNum(a.accountNumber)} | ${a.ifscCode}</div>
+        <div style="font-size:11px;color:var(--text-sub);margin-top:2px;">${a.accountHolderName || ''} ${a.accountType ? '· <span class="tag" style="font-size:10px;padding:2px 6px;">' + a.accountType + '</span>' : ''}</div>
       </div>
       <div class="account-chip-bal">${inr(a.balance)}</div>
       <button class="btn btn-danger" onclick="deleteBankAccount(${a.id})">Delete</button>
@@ -205,7 +206,7 @@ function renderAccounts() {
     <div class="dashboard-account-item">
       <div>
         <div class="dashboard-account-bank">${a.bankName}</div>
-        <div class="dashboard-account-num">${maskNum(a.accountNumber)}</div>
+        <div class="dashboard-account-num">${maskNum(a.accountNumber)}${a.accountType ? ' · ' + a.accountType : ''}</div>
       </div>
       <div class="dashboard-account-bal">${inr(a.balance)}</div>
     </div>`).join('');
@@ -340,9 +341,11 @@ document.getElementById('bankAccountForm').addEventListener('submit', async (e) 
     await api('/api/v1/bank-accounts', {
       method: 'POST',
       body: JSON.stringify({
+        accountHolderName: f.accountHolderName.value,
         bankName: f.bankName.value,
         accountNumber: f.accountNumber.value,
         ifscCode: f.ifscCode.value,
+        accountType: f.accountType.value,
         bankPin: f.bankPin.value,
         openingBalance: Number(f.openingBalance.value)
       })

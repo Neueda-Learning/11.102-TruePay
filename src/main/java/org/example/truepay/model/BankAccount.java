@@ -16,6 +16,9 @@ public class BankAccount {
     private UserProfile user;
 
     @Column(nullable = false)
+    private String accountHolderName;
+
+    @Column(nullable = false)
     private String bankName;
 
     @Column(nullable = false, unique = true)
@@ -43,6 +46,14 @@ public class BankAccount {
 
     public void setUser(UserProfile user) {
         this.user = user;
+    }
+
+    public String getAccountHolderName() {
+        return accountHolderName;
+    }
+
+    public void setAccountHolderName(String accountHolderName) {
+        this.accountHolderName = accountHolderName;
     }
 
     public String getBankName() {

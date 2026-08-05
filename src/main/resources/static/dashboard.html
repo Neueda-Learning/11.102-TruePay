@@ -394,17 +394,32 @@
           <form id="bankAccountForm">
             <div class="form-grid cols-1">
               <div class="form-group">
+                <label class="form-label">Account Holder Name</label>
+                <input class="form-input" name="accountHolderName" placeholder="Rahul Kumar" required />
+              </div>
+              <div class="form-group">
                 <label class="form-label">Bank Name</label>
                 <input class="form-input" name="bankName" placeholder="HDFC Bank" required />
               </div>
               <div class="form-group">
-
                 <label class="form-label">Account Number</label>
                 <input class="form-input" name="accountNumber" type="tel" inputmode="numeric" minlength="8" maxlength="12" placeholder="12345678" required />
               </div>
               <div class="form-group">
                 <label class="form-label">IFSC Code</label>
                 <input class="form-input" name="ifscCode" placeholder="HDFC0001234" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Account Type</label>
+                <select class="form-select" name="accountType" required>
+                  <option value="" disabled selected>Select account type</option>
+                  <option value="SAVINGS">💰 Savings</option>
+                  <option value="CURRENT">🏢 Current</option>
+                  <option value="SALARY">💼 Salary</option>
+                  <option value="FIXED_DEPOSIT">🔒 Fixed Deposit</option>
+                  <option value="RECURRING_DEPOSIT">🔄 Recurring Deposit</option>
+                  <option value="NRI">🌍 NRI Account</option>
+                </select>
               </div>
               <div class="form-group">
                 <label class="form-label">Bank PIN (6 digits)</label>

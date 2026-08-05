@@ -31,11 +31,12 @@ public class BankAccountService {
 
         BankAccount account = new BankAccount();
         account.setUser(user);
+        account.setAccountHolderName(request.accountHolderName());
         account.setBankName(request.bankName());
         account.setAccountNumber(request.accountNumber());
         account.setIfscCode(request.ifscCode().toUpperCase());
         account.setBankPinHash(passwordEncoder.encode(request.bankPin()));
-        account.setAccountType("saving");
+        account.setAccountType(request.accountType());
         account.setBalance(request.openingBalance());
 
         return bankAccountRepository.save(account);
