@@ -59,7 +59,6 @@ public class PaymentService {
                 request.sourceAccountId(),
                 request.amount(),
                 request.currency(),
-                request.idempotencyKey(),
                 request.bankPin(),
                 PaymentMethod.UPI,
                 request.destinationUpiId(),
@@ -86,7 +85,6 @@ public class PaymentService {
                 request.sourceAccountId(),
                 request.amount(),
                 request.currency(),
-                request.idempotencyKey(),
                 request.bankPin(),
                 PaymentMethod.BANK,
                 null,
@@ -101,7 +99,6 @@ public class PaymentService {
                                             Long sourceAccountId,
                                             BigDecimal amount,
                                             String currency,
-                                            String idempotencyKey,
                                             String bankPin,
                                             PaymentMethod method,
                                             String destinationUpi,
@@ -109,12 +106,6 @@ public class PaymentService {
                                             String destinationAccount,
                                             String destinationIfsc,
                                             String referenceRemark) {
-
-        Payment existing = paymentRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey).orElse(null);
-        if (existing != null) {
-            return existing;
-        }
-
         UserProfile user = profileService.getUserOrThrow(userId);
         BankAccount source = bankAccountService.getForPayment(userId, sourceAccountId);
         bankAccountService.validateBankPin(source, bankPin);
@@ -127,7 +118,7 @@ public class PaymentService {
         payment.setMethod(method);
         payment.setAmount(amount);
         payment.setCurrency(currency.toUpperCase());
-        payment.setIdempotencyKey(idempotencyKey);
+        payment.setIdempotencyKey(generateIdempotencyKey(userId));
         payment.setDestinationUpiId(destinationUpi);
         payment.setReceiverName(receiverName);
         payment.setDestinationAccount(destinationAccount);
@@ -300,10 +291,19 @@ public class PaymentService {
                             history.getTriggeredBy(),
                             history.getChangedAt(),
                             history.getNotes(),
+                            payment.getIdempotencyKey(),
                             payment.getReferenceRemark()
                     );
                 })
                 .toList();
+    }
+
+    private String generateIdempotencyKey(Long userId) {
+        String key;
+        do {
+            key = "txn-" + userId + "-" + UUID.randomUUID();
+        } while (paymentRepository.findByUserIdAndIdempotencyKey(userId, key).isPresent());
+        return key;
     }
 
     public DashboardSummaryResponse getDashboardSummary(Long userId) {

@@ -1,6 +1,8 @@
 package org.example.truepay.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -13,6 +15,8 @@ import java.util.UUID;
 public class Payment {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(length = 36, updatable = false, nullable = false)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)

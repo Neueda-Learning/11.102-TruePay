@@ -18,7 +18,7 @@ TruePay is a Spring Boot payments platform with a REST API and a lightweight das
   - `CREATED -> VALIDATED -> SENT -> COMPLETED`
   - `FAILED` can happen at any stage
 - Fraud checks for high-value and high-frequency transactions
-- Idempotency by `idempotencyKey` per user
+- System-generated idempotency key per payment (visible in audit)
 - Dashboard graphs (status distribution, fraud/failure, payment volume)
 - OpenAPI docs at `/swagger-ui`
 
