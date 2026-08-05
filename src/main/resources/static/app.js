@@ -1,5 +1,5 @@
 /* TruePay dashboard frontend */
-const state = { user: null, accounts: [], payments: [], audits: [], summary: null, charts: {} };
+const state = { user: null, accounts: [], payments: [], audits: [], summary: null, charts: {}, searchQuery: '' };
 
 /* Theme */
 function getTheme() {
@@ -78,6 +78,105 @@ function fmtDate(d) {
 
 function statusIcon(s) {
   return { COMPLETED: 'OK', FAILED: 'X', CREATED: 'NEW', VALIDATED: 'CHK', SENT: 'SENT' }[s] || '...';
+}
+
+function toSearchText(value) {
+  return String(value || '').toLowerCase().trim();
+}
+
+function paymentMatchesQuery(payment, query) {
+  if (!query) return true;
+  const haystack = [
+    payment.id,
+    payment.method,
+    payment.status,
+    payment.receiverName,
+    payment.destinationUpiId,
+    payment.currency,
+    payment.amount,
+    fmtDate(payment.createdAt)
+  ].map(toSearchText).join(' ');
+  return haystack.includes(query);
+}
+
+function auditMatchesQuery(audit, query) {
+  if (!query) return true;
+  const haystack = [
+    audit.paymentId,
+    audit.method,
+    audit.status,
+    audit.receiver,
+    audit.currency,
+    audit.amount,
+    audit.triggeredBy,
+    audit.notes,
+    audit.referenceRemark,
+    fmtDate(audit.changedAt)
+  ].map(toSearchText).join(' ');
+  return haystack.includes(query);
+}
+
+function accountMatchesQuery(account, query) {
+  if (!query) return true;
+  const haystack = [
+    account.bankName,
+    account.accountHolderName,
+    account.accountNumber,
+    account.ifscCode,
+    account.accountType,
+    account.balance
+  ].map(toSearchText).join(' ');
+  return haystack.includes(query);
+}
+
+function getSearchTargetPage(query) {
+  if (!query) return null;
+
+  const pageKeywords = {
+    dashboard: ['dashboard', 'overview', 'summary', 'kpi', 'risk'],
+    history: ['history', 'payment history', 'payments', 'transactions'],
+    audits: ['audit', 'audit history', 'events', 'actor', 'timeline'],
+    'pay-upi': ['upi', 'pay upi', 'send upi', 'mobile'],
+    'pay-bank': ['bank transfer', 'transfer', 'ifsc', 'receiver'],
+    accounts: ['account', 'bank accounts', 'ifsc', 'balance', 'linked'],
+    profile: ['profile', 'user', 'email', 'mobile']
+  };
+
+  for (const [page, words] of Object.entries(pageKeywords)) {
+    if (words.some((word) => word.includes(query) || query.includes(word))) {
+      return page;
+    }
+  }
+
+  if (state.payments.some((p) => paymentMatchesQuery(p, query))) return 'history';
+  if (state.audits.some((a) => auditMatchesQuery(a, query))) return 'audits';
+  if (state.accounts.some((a) => accountMatchesQuery(a, query))) return 'accounts';
+
+  if (state.user) {
+    const userText = [state.user.fullName, state.user.email, state.user.mobile].map(toSearchText).join(' ');
+    if (userText.includes(query)) return 'profile';
+  }
+
+  return null;
+}
+
+function runSearch(query, options = {}) {
+  state.searchQuery = toSearchText(query);
+
+  const searchWrap = document.querySelector('.topbar-search-wrap');
+  if (searchWrap) {
+    searchWrap.classList.toggle('search-active', Boolean(state.searchQuery));
+  }
+
+  if (options.navigateFirstMatch) {
+    const targetPage = getSearchTargetPage(state.searchQuery);
+    if (targetPage) navigate(targetPage);
+  }
+
+  renderHistory();
+  renderAudits();
+  renderAccounts();
+  renderDashboardRecent();
 }
 
 /* Render */
@@ -199,11 +298,14 @@ function renderCharts() {
 
 function renderHistory() {
   const filter = document.getElementById('historyFilter').value;
-  const data = filter ? state.payments.filter((p) => p.status === filter) : state.payments;
+  const query = state.searchQuery;
+  const byStatus = filter ? state.payments.filter((p) => p.status === filter) : state.payments;
+  const data = byStatus.filter((p) => paymentMatchesQuery(p, query));
   const tbody = document.getElementById('historyTableBody');
 
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">No payments found.</td></tr>';
+    const emptyMessage = query ? 'No payments match your search.' : 'No payments found.';
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">${emptyMessage}</td></tr>`;
     return;
   }
 
@@ -222,7 +324,10 @@ function renderHistory() {
 function renderAccounts() {
   document.getElementById('accCombined').textContent = state.summary ? inr(state.summary.combinedBalance) : 'INR 0.00';
 
-  const html = state.accounts.map((a) => `
+  const query = state.searchQuery;
+  const visibleAccounts = state.accounts.filter((a) => accountMatchesQuery(a, query));
+
+  const html = visibleAccounts.map((a) => `
     <div class="account-chip">
       <div class="account-chip-icon">B</div>
       <div class="account-chip-info">
@@ -234,7 +339,8 @@ function renderAccounts() {
       <button class="btn btn-danger" onclick="deleteBankAccount(${a.id})">Delete</button>
     </div>`).join('');
 
-  document.getElementById('accountsList').innerHTML = html || '<div class="empty">No bank accounts linked yet.</div>';
+  const emptyMessage = query ? 'No bank accounts match your search.' : 'No bank accounts linked yet.';
+  document.getElementById('accountsList').innerHTML = html || `<div class="empty">${emptyMessage}</div>`;
   document.getElementById('upiAccountPreview').innerHTML = html || '<div class="empty">No accounts.</div>';
 
   const options = state.accounts.map((a) => `<option value="${a.id}">${a.bankName} | ${maskNum(a.accountNumber)} (${inr(a.balance)})</option>`).join('');
@@ -243,7 +349,7 @@ function renderAccounts() {
     if (el) el.innerHTML = options;
   });
 
-  const sideList = state.accounts.slice(0, 5).map((a) => `
+  const sideList = visibleAccounts.slice(0, 5).map((a) => `
     <div class="dashboard-account-item">
       <div>
         <div class="dashboard-account-bank">${a.bankName}</div>
@@ -253,7 +359,8 @@ function renderAccounts() {
     </div>`).join('');
   const dashboardAccounts = document.getElementById('dashboardBankAccountsList');
   if (dashboardAccounts) {
-    dashboardAccounts.innerHTML = sideList || '<div class="empty">No linked accounts yet.</div>';
+    const sideEmptyMessage = query ? 'No linked accounts match your search.' : 'No linked accounts yet.';
+    dashboardAccounts.innerHTML = sideList || `<div class="empty">${sideEmptyMessage}</div>`;
   }
 }
 
@@ -261,12 +368,16 @@ function renderDashboardRecent() {
   const tbody = document.getElementById('dashboardRecentBody');
   if (!tbody) return;
 
-  if (!state.payments.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty">No recent transactions.</td></tr>';
+  const query = state.searchQuery;
+  const visiblePayments = state.payments.filter((p) => paymentMatchesQuery(p, query));
+
+  if (!visiblePayments.length) {
+    const emptyMessage = query ? 'No recent transactions match your search.' : 'No recent transactions.';
+    tbody.innerHTML = `<tr><td colspan="4" class="empty">${emptyMessage}</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = state.payments.slice(0, 6).map((p) => `
+  tbody.innerHTML = visiblePayments.slice(0, 6).map((p) => `
     <tr>
       <td style="font-family:monospace;font-size:11px;color:var(--text-sub);">${p.id.slice(0, 8)}...</td>
       <td>${p.receiverName || p.destinationUpiId || '-'}</td>
@@ -298,7 +409,9 @@ function renderAudits() {
   if (!tbody) return;
 
   const filter = document.getElementById('auditStatusFilter')?.value || '';
-  const data = filter ? state.audits.filter((audit) => audit.status === filter) : state.audits;
+  const query = state.searchQuery;
+  const byStatus = filter ? state.audits.filter((audit) => audit.status === filter) : state.audits;
+  const data = byStatus.filter((audit) => auditMatchesQuery(audit, query));
 
   const eventCount = document.getElementById('auditEventCount');
   const transactionCount = document.getElementById('auditTransactionCount');
@@ -309,7 +422,8 @@ function renderAudits() {
   if (latestAt) latestAt.textContent = data.length ? fmtDate(data[0].changedAt) : '-';
 
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">No audit events found.</td></tr>';
+    const emptyMessage = query ? 'No audit events match your search.' : 'No audit events found.';
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">${emptyMessage}</td></tr>`;
     return;
   }
 
@@ -393,6 +507,26 @@ document.getElementById('themeSwitch').addEventListener('click', toggleTheme);
 document.querySelectorAll('.nav-item[data-page]').forEach((btn) => btn.addEventListener('click', () => navigate(btn.dataset.page)));
 
 document.getElementById('historyFilter').addEventListener('change', renderHistory);
+
+const topbarSearchInput = document.getElementById('globalSearch');
+if (topbarSearchInput) {
+  topbarSearchInput.addEventListener('input', (e) => {
+    runSearch(e.target.value);
+  });
+
+  topbarSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runSearch(e.target.value, { navigateFirstMatch: true });
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.target.value = '';
+      runSearch('');
+    }
+  });
+}
 
 document.getElementById('verifyReceiverBtn').addEventListener('click', async () => {
   const form = document.getElementById('bankTransferForm');
@@ -540,6 +674,7 @@ async function loadAll() {
   renderAccounts();
   renderDashboardRecent();
   renderProfile();
+  runSearch(state.searchQuery);
 }
 
 const auditStatusFilter = document.getElementById('auditStatusFilter');
