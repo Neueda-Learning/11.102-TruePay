@@ -438,6 +438,7 @@ function renderAudits() {
       <td>${audit.triggeredBy}</td>
       <td>
         <div>${audit.notes || '-'}</div>
+        ${audit.idempotencyKey ? `<div class="audit-reference">Key: ${audit.idempotencyKey}</div>` : ''}
         ${audit.referenceRemark ? `<div class="audit-reference">Ref: ${audit.referenceRemark}</div>` : ''}
       </td>
       <td><button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="openAuditPayment('${audit.paymentId}')">Transaction</button></td>
@@ -612,7 +613,7 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
         amount: Number(f.amount.value),
         currency: f.currency.value,
         destinationUpiId,
-        idempotencyKey: f.idempotencyKey.value,
+        appPin: f.appPin.value,
         bankPin: f.bankPin.value
       })
     });
@@ -641,7 +642,6 @@ document.getElementById('bankTransferForm').addEventListener('submit', async (e)
         destinationAccount: f.destinationAccount.value || null,
         destinationIfsc: f.destinationIfsc.value || null,
         reference: f.reference.value || null,
-        idempotencyKey: f.idempotencyKey.value,
         appPin: f.appPin.value,
         bankPin: f.bankPin.value
       })

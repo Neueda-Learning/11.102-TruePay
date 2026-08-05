@@ -60,7 +60,6 @@ public class PaymentService {
                 request.sourceAccountId(),
                 request.amount(),
                 request.currency(),
-                request.idempotencyKey(),
                 request.bankPin(),
                 PaymentMethod.UPI,
                 request.destinationUpiId(),
@@ -87,7 +86,6 @@ public class PaymentService {
                 request.sourceAccountId(),
                 request.amount(),
                 request.currency(),
-                request.idempotencyKey(),
                 request.bankPin(),
                 PaymentMethod.BANK,
                 null,
@@ -102,7 +100,6 @@ public class PaymentService {
                                             Long sourceAccountId,
                                             BigDecimal amount,
                                             String currency,
-                                            String idempotencyKey,
                                             String bankPin,
                                             PaymentMethod method,
                                             String destinationUpi,
@@ -110,12 +107,6 @@ public class PaymentService {
                                             String destinationAccount,
                                             String destinationIfsc,
                                             String referenceRemark) {
-
-        Payment existing = paymentRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey).orElse(null);
-        if (existing != null) {
-            return existing;
-        }
-
         UserProfile user = profileService.getUserOrThrow(userId);
 
         Payment payment = createPendingPayment(user, amount, currency, idempotencyKey, method,
@@ -180,11 +171,187 @@ public class PaymentService {
                                          String referenceRemark) {
         Payment payment = new Payment();
         payment.setUser(user);
+Skip to content
+Neueda-Learning
+11.102-TruePay
+Repository navigation
+Code
+Issues
+Pull requests
+1
+ (1)
+Actions
+Projects
+Wiki
+Security and quality
+Insights
+Settings
+Indempotancy #13
+Resolving conflicts between change and main and committing changes  change
+4 conflicting files
+PaymentService.java
+...e/truepay/service/PaymentService.java
+app.js
+src/main/resources/static/app.js
+dashboard.html
+src/main/resources/static/dashboard.html
+PaymentAuditControllerTest.java
+...y/api/PaymentAuditControllerTest.java
+src/main/java/org/example/truepay/service/PaymentService.java
+1 conflict 
+  
+141
+            }
+142
+​
+143
+            source.setBalance(source.getBalance().subtract(amount));
+144
+            destination.ifPresent(receiver -> receiver.setBalance(receiver.getBalance().add(amount)));
+145
+​
+146
+            payment.setStatus(PaymentStatus.SUCCESS);
+147
+            payment.setErrorCode(null);
+148
+            payment.setErrorMessage(null);
+149
+            payment.setFailureReason(null);
+150
+            recordStatus(payment, PaymentStatus.SUCCESS, "SYSTEM", "Payment completed successfully");
+151
+​
+152
+            return paymentRepository.save(payment);
+153
+        } catch (TruePayException ex) {
+154
+            failPayment(payment, ex.getErrorCode(), ex.getMessage());
+155
+            return payment;
+156
+        } catch (Exception ex) {
+157
+            failPayment(payment, ErrorCode.PROCESSING_ERROR, ex.getMessage());
+158
+            return payment;
+159
+        }
+160
+    }
+161
+​
+162
+    private Payment createPendingPayment(UserProfile user,
+163
+                                         BigDecimal amount,
+164
+                                         String currency,
+165
+                                         String idempotencyKey,
+166
+                                         PaymentMethod method,
+167
+                                         String destinationUpi,
+168
+                                         String receiverName,
+169
+                                         String destinationAccount,
+170
+                                         String destinationIfsc,
+171
+                                         String referenceRemark) {
+172
+        Payment payment = new Payment();
+173
+        payment.setUser(user);
+174
         payment.setMethod(method);
+175
         payment.setAmount(amount);
-        payment.setCurrency(currency != null ? currency.toUpperCase(Locale.ROOT) : null);
-        payment.setIdempotencyKey(idempotencyKey);
+ |  | 
+176
+ 
+177
+ 
+        payment.setCurrency(currency.toUpperCase());
+178
+ 
+        payment.setIdempotencyKey(generateIdempotencyKey(userId));
+179
+ 
+183
         payment.setDestinationUpiId(destinationUpi);
+184
+        payment.setReceiverName(receiverName);
+185
+        payment.setDestinationAccount(destinationAccount);
+186
+        payment.setDestinationIfsc(destinationIfsc != null ? destinationIfsc.toUpperCase(Locale.ROOT) : null);
+187
+        payment.setReferenceRemark(referenceRemark);
+188
+        payment.setStatus(PaymentStatus.PENDING);
+189
+        paymentRepository.save(payment);
+190
+        recordStatus(payment, PaymentStatus.PENDING, "API", "Payment submitted");
+191
+        return payment;
+192
+    }
+193
+​
+194
+    private void validatePaymentFields(BankAccount sourceAccount,
+195
+                                       BigDecimal amount,
+196
+                                       String currency,
+197
+                                       PaymentMethod method,
+198
+                                       String destinationUpi,
+199
+                                       String receiverName,
+200
+                                       String destinationAccount,
+201
+                                       String destinationIfsc) {
+202
+        if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(MAX_AMOUNT) > 0) {
+203
+            throw new TruePayException(ErrorCode.INVALID_AMOUNT, HttpStatus.BAD_REQUEST, "Invalid payment amount");
+204
+        }
+205
+​
+206
+        if (!SUPPORTED_CURRENCIES.contains(currency.toUpperCase())) {
+207
+            throw new TruePayException(ErrorCode.INVALID_CURRENCY, HttpStatus.BAD_REQUEST,
+208
+                    "Unsupported currency. Supported: " + SUPPORTED_CURRENCIES);
+209
+        }
+210
+​
+211
+        if (method == PaymentMethod.UPI && (destinationUpi == null || destinationUpi.isBlank())) {
+Footer
+© 2026 GitHub, Inc.
+Footer navigation
+Terms
+Privacy
+Security
+Status
+Community
+Docs
+Contact
+Manage cookies
+Do not share my personal information
+
         payment.setReceiverName(receiverName);
         payment.setDestinationAccount(destinationAccount);
         payment.setDestinationIfsc(destinationIfsc != null ? destinationIfsc.toUpperCase(Locale.ROOT) : null);
@@ -350,10 +517,19 @@ public class PaymentService {
                             history.getTriggeredBy(),
                             history.getChangedAt(),
                             history.getNotes(),
+                            payment.getIdempotencyKey(),
                             payment.getReferenceRemark()
                     );
                 })
                 .toList();
+    }
+
+    private String generateIdempotencyKey(Long userId) {
+        String key;
+        do {
+            key = "txn-" + userId + "-" + UUID.randomUUID();
+        } while (paymentRepository.findByUserIdAndIdempotencyKey(userId, key).isPresent());
+        return key;
     }
 
     public DashboardSummaryResponse getDashboardSummary(Long userId) {

@@ -87,10 +87,12 @@ class PaymentAuditControllerTest {
                 .andExpect(jsonPath("$[0].status").value("PENDING"))
                 .andExpect(jsonPath("$[0].triggeredBy").value("API"))
                 .andExpect(jsonPath("$[0].receiver").value("Rahul Kumar"))
+                .andExpect(jsonPath("$[0].idempotencyKey").value("bank-order-001"))
                 .andExpect(jsonPath("$[0].referenceRemark").value("August rent"))
                 .andExpect(jsonPath("$[1].paymentId").value(upiPayment.getId().toString()))
-                .andExpect(jsonPath("$[1].status").value("SUCCESS"))
-                .andExpect(jsonPath("$[2].status").value("PENDING"));
+                .andExpect(jsonPath("$[1].status").value("COMPLETED"))
+                .andExpect(jsonPath("$[1].idempotencyKey").value("upi-order-001"))
+                .andExpect(jsonPath("$[2].status").value("CREATED"));
     }
 
     @Test
