@@ -252,10 +252,6 @@
               </div>
               <div class="form-section-title">Security</div>
               <div class="form-group">
-                <label class="form-label">App PIN (4 digits)</label>
-                <input class="form-input" name="appPin" maxlength="4" pattern="\d{4}" placeholder="1234" required />
-              </div>
-              <div class="form-group">
                 <label class="form-label">Bank PIN (6 digits)</label>
                 <input class="form-input" name="bankPin" maxlength="6" pattern="\d{6}" placeholder="••••••" required />
               </div>
@@ -291,10 +287,6 @@
                 <label class="form-label">Bank PIN (6 digits)</label>
                 <input class="form-input" name="bankPin" maxlength="6" pattern="\d{6}" placeholder="••••••" required />
               </div>
-              <div>
-                <button type="button" class="btn btn-secondary" id="verifyReceiverBtn" style="width:100%;">🔍 Verify Receiver</button>
-                <div id="verifyReceiverMsg" class="verify-result"></div>
-              </div>
 
               <div class="form-section-title">Transfer Details</div>
               <div class="form-group">
@@ -315,11 +307,6 @@
                 <input class="form-input" name="appPin" maxlength="4" pattern="\d{4}" placeholder="1234" required />
               </div>
 
-              <div class="form-section-title">Authorization</div>
-              <div class="form-group">
-                <label class="form-label">Bank PIN (6 digits)</label>
-                <input class="form-input" name="bankPin" maxlength="6" pattern="\d{6}" placeholder="••••••" required />
-              </div>
             </div>
             <button class="btn btn-primary mt16" type="submit" style="width:100%;">🏦 Initiate Transfer</button>
           </form>
@@ -335,14 +322,10 @@
               </div>
               <div class="timeline-item">
                 <div class="timeline-dot VALIDATED">2</div>
-                <div class="timeline-content"><div class="timeline-label">Verify Receiver</div><div class="timeline-note">Check if receiver exists in TruePay</div></div>
+                <div class="timeline-content"><div class="timeline-label">Processing</div><div class="timeline-note">TruePay validates and routes the transfer request</div></div>
               </div>
               <div class="timeline-item">
-                <div class="timeline-dot VALIDATED">3</div>
-                <div class="timeline-content"><div class="timeline-label">Authorize</div><div class="timeline-note">Bank PIN</div></div>
-              </div>
-              <div class="timeline-item">
-                <div class="timeline-dot COMPLETED">4</div>
+                <div class="timeline-dot COMPLETED">3</div>
                 <div class="timeline-content"><div class="timeline-label">Completed</div><div class="timeline-note">Funds transferred instantly</div></div>
               </div>
             </div>

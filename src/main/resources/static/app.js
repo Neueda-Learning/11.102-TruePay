@@ -529,28 +529,6 @@ if (topbarSearchInput) {
   });
 }
 
-document.getElementById('verifyReceiverBtn').addEventListener('click', async () => {
-  const form = document.getElementById('bankTransferForm');
-  const accountNumber = form.destinationAccount.value;
-  const ifscCode = form.destinationIfsc.value;
-  const msg = document.getElementById('verifyReceiverMsg');
-
-  if (!accountNumber || !ifscCode) {
-    msg.textContent = 'Enter receiver account and IFSC first.';
-    msg.className = 'verify-result show-err';
-    return;
-  }
-
-  try {
-    const r = await api(`/api/v1/payments/verify-receiver?accountNumber=${encodeURIComponent(accountNumber)}&ifscCode=${encodeURIComponent(ifscCode)}`);
-    msg.textContent = r.message;
-    msg.className = 'verify-result ' + (r.internalAccount ? 'show-ok' : 'show-info');
-    if (r.internalAccount && !form.receiverName.value) form.receiverName.value = r.receiverName;
-  } catch (e) {
-    msg.textContent = e.message;
-    msg.className = 'verify-result show-err';
-  }
-});
 
 document.getElementById('bankAccountForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -613,7 +591,6 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
         amount: Number(f.amount.value),
         currency: f.currency.value,
         destinationUpiId,
-        appPin: f.appPin.value,
         bankPin: f.bankPin.value
       })
     });
