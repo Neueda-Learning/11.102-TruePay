@@ -1,5 +1,5 @@
 /* TruePay dashboard frontend */
-const state = { user: null, accounts: [], payments: [], summary: null, charts: {} };
+const state = { user: null, accounts: [], payments: [], audits: [], summary: null, charts: {} };
 
 /* Theme */
 function getTheme() {
@@ -32,6 +32,7 @@ function navigate(page) {
   const titles = {
     dashboard: ['Dashboard', "Welcome back! Here's your overview."],
     history: ['Payment History', 'All your transactions in one place.'],
+    audits: ['Audit History', 'Every transaction event, actor, and status change.'],
     'pay-upi': ['Pay to UPI', 'Send money instantly via UPI.'],
     'pay-bank': ['Bank Transfer', 'Transfer funds to any bank account.'],
     accounts: ['Bank Accounts', 'Manage your linked accounts.'],
@@ -82,9 +83,13 @@ function statusIcon(s) {
 /* Render */
 function renderSidebar() {
   if (!state.user) return;
-  document.getElementById('sidebarName').textContent = state.user.fullName;
-  document.getElementById('sidebarEmail').textContent = state.user.email;
-  document.getElementById('sidebarAvatar').textContent = state.user.fullName.charAt(0).toUpperCase();
+  const sidebarName = document.getElementById('sidebarName');
+  const sidebarEmail = document.getElementById('sidebarEmail');
+  const sidebarAvatar = document.getElementById('sidebarAvatar');
+
+  if (sidebarName) sidebarName.textContent = state.user.fullName;
+  if (sidebarEmail) sidebarEmail.textContent = state.user.email;
+  if (sidebarAvatar) sidebarAvatar.textContent = state.user.fullName.charAt(0).toUpperCase();
 }
 
 function renderKPIs() {
@@ -288,6 +293,43 @@ function renderProfile() {
     </div>`;
 }
 
+function renderAudits() {
+  const tbody = document.getElementById('auditTableBody');
+  if (!tbody) return;
+
+  const filter = document.getElementById('auditStatusFilter')?.value || '';
+  const data = filter ? state.audits.filter((audit) => audit.status === filter) : state.audits;
+
+  const eventCount = document.getElementById('auditEventCount');
+  const transactionCount = document.getElementById('auditTransactionCount');
+  const latestAt = document.getElementById('auditLatestAt');
+
+  if (eventCount) eventCount.textContent = data.length;
+  if (transactionCount) transactionCount.textContent = new Set(data.map((audit) => audit.paymentId)).size;
+  if (latestAt) latestAt.textContent = data.length ? fmtDate(data[0].changedAt) : '-';
+
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No audit events found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.slice(0, 100).map((audit) => `
+    <tr>
+      <td style="color:var(--text-sub);">${fmtDate(audit.changedAt)}</td>
+      <td style="font-family:monospace;font-size:11px;color:var(--text-sub);">${audit.paymentId.slice(0, 8)}...</td>
+      <td><span class="tag tag-${audit.method === 'UPI' ? 'upi' : 'bank'}">${audit.method}</span></td>
+      <td>${audit.receiver || '-'}</td>
+      <td style="font-weight:700;">${audit.amount} <span style="color:var(--text-sub);font-size:11px;">${audit.currency}</span></td>
+      <td><span class="status-badge ${audit.status}">${statusIcon(audit.status)} ${audit.status}</span></td>
+      <td>${audit.triggeredBy}</td>
+      <td>
+        <div>${audit.notes || '-'}</div>
+        ${audit.referenceRemark ? `<div class="audit-reference">Ref: ${audit.referenceRemark}</div>` : ''}
+      </td>
+      <td><button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="openAuditPayment('${audit.paymentId}')">Transaction</button></td>
+    </tr>`).join('');
+}
+
 async function showPaymentDetail(paymentId) {
   const payment = state.payments.find((p) => p.id === paymentId);
   if (!payment) return;
@@ -321,6 +363,11 @@ async function showPaymentDetail(paymentId) {
   } catch (_) {
     document.getElementById('paymentTimeline').innerHTML = '';
   }
+}
+
+function openAuditPayment(paymentId) {
+  navigate('history');
+  showPaymentDetail(paymentId);
 }
 
 /* Actions */
@@ -432,6 +479,7 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
         currency: f.currency.value,
         destinationUpiId,
         idempotencyKey: f.idempotencyKey.value,
+        appPin: f.appPin.value,
         bankPin: f.bankPin.value
       })
     });
@@ -461,6 +509,7 @@ document.getElementById('bankTransferForm').addEventListener('submit', async (e)
         destinationIfsc: f.destinationIfsc.value || null,
         reference: f.reference.value || null,
         idempotencyKey: f.idempotencyKey.value,
+        appPin: f.appPin.value,
         bankPin: f.bankPin.value
       })
     });
@@ -476,9 +525,10 @@ async function loadAll() {
   state.user = await api('/api/v1/auth/me');
   if (!state.user) return;
 
-  [state.accounts, state.payments, state.summary] = await Promise.all([
+  [state.accounts, state.payments, state.audits, state.summary] = await Promise.all([
     api('/api/v1/bank-accounts'),
     api('/api/v1/payments'),
+    api('/api/v1/payments/audits'),
     api('/api/v1/dashboard/summary')
   ]);
 
@@ -486,12 +536,17 @@ async function loadAll() {
   renderKPIs();
   renderCharts();
   renderHistory();
+  renderAudits();
   renderAccounts();
   renderDashboardRecent();
   renderProfile();
 }
 
+const auditStatusFilter = document.getElementById('auditStatusFilter');
+if (auditStatusFilter) auditStatusFilter.addEventListener('change', renderAudits);
+
 window.deleteBankAccount = deleteBankAccount;
+window.openAuditPayment = openAuditPayment;
 window.showPaymentDetail = showPaymentDetail;
 window.loadAll = loadAll;
 window.navigate = navigate;
