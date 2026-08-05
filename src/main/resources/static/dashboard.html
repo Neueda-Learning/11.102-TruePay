@@ -35,13 +35,6 @@
       <button class="nav-item" data-page="profile"><span class="icon">👤</span> Profile</button>
     </nav>
     <div class="sidebar-bottom">
-      <div class="sidebar-user">
-        <div class="sidebar-avatar" id="sidebarAvatar">A</div>
-        <div class="sidebar-user-info">
-          <div class="sidebar-user-name" id="sidebarName">Loading...</div>
-          <div class="sidebar-user-email" id="sidebarEmail">—</div>
-        </div>
-      </div>
       <div class="theme-toggle-row">
         <span>🌙 Dark Mode</span>
         <button class="toggle-switch on" id="themeSwitch"><span class="toggle-knob"></span></button>
@@ -261,10 +254,6 @@
               <div class="form-group">
                 <label class="form-label">Idempotency Key (unique per payment)</label>
                 <input class="form-input" name="idempotencyKey" placeholder="upi-20260803-001" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label">App PIN (4 digits)</label>
-                <input class="form-input" name="appPin" maxlength="4" pattern="\d{4}" placeholder="••••" required />
               </div>
               <div class="form-group">
                 <label class="form-label">Bank PIN (6 digits)</label>
