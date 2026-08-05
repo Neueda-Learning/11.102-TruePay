@@ -103,7 +103,7 @@ class UpiPaymentControllerTest {
                         .content(payload))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.method").value("UPI"))
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.destinationUpiId").value("coffee@upi"))
                 .andExpect(jsonPath("$.errorCode").isEmpty());
 
