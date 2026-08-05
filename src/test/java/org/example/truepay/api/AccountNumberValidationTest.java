@@ -149,4 +149,3 @@ class AccountNumberValidationTest {
         assertFalse(violations.stream().anyMatch(v -> "accountNumber".equals(v.getPropertyPath().toString())));
     }
 }
-
