@@ -10,9 +10,11 @@ import java.math.BigDecimal;
 public record BankTransferRequest(
 		@NotBlank String sourceAccount,
 		@NotBlank String destinationAccount,
+		@NotBlank @Pattern(regexp = "^[A-Z]{4}0[A-Z0-9]{6}$", message = "Destination IFSC format is invalid") String destinationIfsc,
 		@NotNull @DecimalMin(value = "0.01", inclusive = true) BigDecimal amount,
 		@NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "Currency must be ISO-4217 format") String currency,
-		@NotBlank @Pattern(regexp = "^\\d{6}$", message = "Bank PIN must be 6 digits") String bankPin
+		@NotBlank @Pattern(regexp = "^\\d{6}$", message = "Bank PIN must be 6 digits") String bankPin,
+		String receiverName
 ) {
 }
 

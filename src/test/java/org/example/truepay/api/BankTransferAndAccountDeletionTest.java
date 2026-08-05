@@ -91,11 +91,12 @@ class BankTransferAndAccountDeletionTest {
                 {
                   "sourceAccount": "%s",
                   "destinationAccount": "%s",
+                  "destinationIfsc": "%s",
                   "amount": 250.00,
                   "currency": "INR",
                   "bankPin": "123456"
                 }
-                """.formatted(source.getAccountNumber(), destination.getAccountNumber());
+                """.formatted(source.getAccountNumber(), destination.getAccountNumber(), destination.getIfscCode());
 
         mockMvc.perform(post("/api/v1/payments/bank-transfer")
                         .sessionAttr(SessionService.SESSION_USER_ID, owner.getId())

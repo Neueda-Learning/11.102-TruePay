@@ -310,6 +310,14 @@
                 <input class="form-input" name="destinationAccount" type="tel" inputmode="numeric" minlength="8" maxlength="20" pattern="\d{8,20}" placeholder="98765432" required />
               </div>
               <div class="form-group">
+                <label class="form-label">Destination IFSC Code</label>
+                <input class="form-input" name="destinationIfsc" placeholder="HDFC0006789" minlength="11" maxlength="11" pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Receiver Name (optional)</label>
+                <input class="form-input" name="receiverName" maxlength="120" placeholder="Recipient Name" />
+              </div>
+              <div class="form-group">
                 <label class="form-label">Amount</label>
                 <input class="form-input" name="amount" type="number" step="0.01" placeholder="0.00" required />
               </div>
@@ -523,6 +531,6 @@
   </div><!-- /main -->
 </div><!-- /app-shell -->
 
-<script src="/app.js"></script>
+<script src="/app.js?v=20260805"></script>
 </body>
 </html>

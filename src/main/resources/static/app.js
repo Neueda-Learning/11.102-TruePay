@@ -859,10 +859,19 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
 document.getElementById('bankTransferForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target;
-  const destinationAccount = f.destinationAccount ? f.destinationAccount.value : null;
+  const destinationAccountInput = f.elements.namedItem('destinationAccount');
+  const destinationIfscInput = f.elements.namedItem('destinationIfsc');
+  const receiverNameInput = f.elements.namedItem('receiverName');
+  const destinationAccount = destinationAccountInput ? destinationAccountInput.value.trim() : null;
+  const destinationIfsc = destinationIfscInput ? destinationIfscInput.value.trim().toUpperCase() : '';
+  const receiverName = receiverNameInput ? receiverNameInput.value.trim() : '';
   const source = findAccountById(f.sourceAccountId.value);
   if (!source) {
     showResult('bankTransferResult', 'Select a valid source account.', false);
+    return;
+  }
+  if (!destinationIfsc) {
+    showResult('bankTransferResult', 'Destination IFSC is required.', false);
     return;
   }
 
@@ -872,9 +881,11 @@ document.getElementById('bankTransferForm').addEventListener('submit', async (e)
       body: JSON.stringify({
         sourceAccount: source.accountNumber,
         destinationAccount,
+        destinationIfsc,
         amount: Number(f.amount.value),
         currency: f.currency.value,
-        bankPin: f.bankPin.value
+        bankPin: f.bankPin.value,
+        receiverName: receiverName || null
       })
     });
     f.reset();

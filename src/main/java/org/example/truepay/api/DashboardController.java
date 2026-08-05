@@ -24,4 +24,3 @@ public class DashboardController {
         return paymentService.getDashboardSummary(userId);
     }
 }
-

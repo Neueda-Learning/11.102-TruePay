@@ -98,14 +98,11 @@ public class PaymentService {
     @Transactional
     public Payment createBankPayment(Long userId, BankTransferRequest request) {
         Long sourceAccountId = resolveSourceAccountId(userId, request.sourceAccount());
-        BankAccount destination = bankAccountRepository.findByAccountNumber(request.destinationAccount()).orElse(null);
-        String ifsc = destination != null ? destination.getIfscCode() : null;
-        String receiverName = destination != null ? destination.getUser().getFullName() : null;
         return processBankTransfer(userId,
                 sourceAccountId,
                 request.destinationAccount(),
-                ifsc,
-                receiverName,
+                request.destinationIfsc(),
+                request.receiverName(),
                 request.amount(),
                 request.currency(),
                 request.bankPin(),
@@ -194,17 +191,21 @@ public class PaymentService {
             }
 
             BankAccount destination = resolveDestinationAccount(payment, receiverType, receiverValue, destinationAccount, destinationIfsc);
-            if (destination == null) {
-                failPayment(payment, ErrorCode.INVALID_ACCOUNT, "Invalid destination account");
-                return payment;
+            
+            // Handle both internal (account in system) and external (random account) transfers
+            source.setBalance(source.getBalance().subtract(amount));
+            
+            if (destination != null) {
+                // Internal transfer - credit destination account
+                destination.setBalance(destination.getBalance().add(amount));
+                payment.setReceiverName(destination.getUser().getFullName());
+            } else {
+                // External transfer - use provided receiver details
+                payment.setReceiverName(receiverName != null ? receiverName : "External Account");
             }
 
-            source.setBalance(source.getBalance().subtract(amount));
-            destination.setBalance(destination.getBalance().add(amount));
-
-            payment.setReceiverName(destination.getUser().getFullName());
-            payment.setDestinationAccount(destination.getAccountNumber());
-            payment.setDestinationIfsc(destination.getIfscCode());
+            payment.setDestinationAccount(destinationAccount);
+            payment.setDestinationIfsc(destinationIfsc);
             payment.setStatus(PaymentStatus.SUCCESS);
             payment.setErrorCode(null);
             payment.setErrorMessage(null);
