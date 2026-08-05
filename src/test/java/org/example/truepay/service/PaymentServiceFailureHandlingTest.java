@@ -14,6 +14,7 @@ import org.example.truepay.repository.PaymentLimitRepository;
 import org.example.truepay.repository.PaymentRepository;
 import org.example.truepay.repository.PaymentStatusHistoryRepository;
 import org.example.truepay.repository.UserProfileRepository;
+import org.example.truepay.service.TruePayException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -153,7 +154,7 @@ class PaymentServiceFailureHandlingTest {
     }
 
     @Test
-    void missingUpiReceiverMarksPaymentFailed() {
+    void missingUpiReceiverSucceedsAsExternalPayment() {
         UserProfile user = createUser("missing-upi@truepay.local", "9999999008");
         BankAccount source = createAccount(user, "111122223339", "HDFC0001117", new BigDecimal("500.00"), "123456");
 
@@ -167,8 +168,29 @@ class PaymentServiceFailureHandlingTest {
 
         Payment payment = paymentService.createUpiPayment(user.getId(), request);
 
-        assertEquals(PaymentStatus.FAILED, payment.getStatus());
-        assertEquals("Receiver not found", payment.getFailureReason());
+        assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
+        assertEquals("notfound@upi", payment.getReceiverName());
+        assertEquals(new BigDecimal("400.00"), reloadAccount(source.getId()).getBalance());
+    }
+
+    @Test
+    void missingMobileReceiverAlsoSucceedsAsExternalPayment() {
+        UserProfile user = createUser("missing-mobile@truepay.local", "9999999009");
+        BankAccount source = createAccount(user, "111122223340", "HDFC0001118", new BigDecimal("500.00"), "123456");
+
+        UpiPaymentRequest request = new UpiPaymentRequest(
+                source.getId(),
+                new BigDecimal("100.00"),
+                "INR",
+                "9876543210",
+                "123456"
+        );
+
+        Payment payment = paymentService.createUpiPayment(user.getId(), request);
+
+        assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
+        assertEquals("9876543210", payment.getReceiverName());
+        assertEquals(new BigDecimal("400.00"), reloadAccount(source.getId()).getBalance());
     }
 
     @Test

@@ -177,10 +177,25 @@ public class PaymentService {
                 return payment;
             }
 
+            if (method == PaymentMethod.UPI) {
+                source.setBalance(source.getBalance().subtract(amount));
+
+                payment.setReceiverName(receiverValue);
+                payment.setDestinationAccount(null);
+                payment.setDestinationIfsc(null);
+                payment.setStatus(PaymentStatus.SUCCESS);
+                payment.setErrorCode(null);
+                payment.setErrorMessage(null);
+                payment.setFailureReason(null);
+                paymentRepository.save(payment);
+                recordStatus(payment, PaymentStatus.SUCCESS, "SYSTEM", "Payment completed successfully");
+                safeRecordAudit(payment, "PAYMENT_SUCCESS", "Payment of " + payment.getCurrency() + " " + payment.getAmount() + " completed");
+                return payment;
+            }
+
             BankAccount destination = resolveDestinationAccount(payment, receiverType, receiverValue, destinationAccount, destinationIfsc);
             if (destination == null) {
-                String reason = method == PaymentMethod.UPI ? "Receiver not found" : "Invalid destination account";
-                failPayment(payment, ErrorCode.INVALID_ACCOUNT, reason);
+                failPayment(payment, ErrorCode.INVALID_ACCOUNT, "Invalid destination account");
                 return payment;
             }
 

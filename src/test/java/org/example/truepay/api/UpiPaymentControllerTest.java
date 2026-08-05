@@ -172,6 +172,33 @@ class UpiPaymentControllerTest {
     }
 
     @Test
+    void payToUpiSucceedsForUnknownReceiver() throws Exception {
+        String payload = """
+                {
+                  "sourceAccountId": %d,
+                  "amount": 75.00,
+                  "currency": "INR",
+                  "destinationUpiId": "externaluser@upi",
+                  "bankPin": "123456"
+                }
+                """.formatted(source.getId());
+
+        mockMvc.perform(post("/api/v1/payments/pay-to-upi")
+                        .sessionAttr(SessionService.SESSION_USER_ID, user.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.method").value("UPI"))
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.destinationUpiId").value("externaluser@upi"))
+                .andExpect(jsonPath("$.receiverName").value("externaluser@upi"));
+
+        Payment saved = paymentRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).get(0);
+        assertEquals("externaluser@upi", saved.getDestinationUpiId());
+        assertEquals("externaluser@upi", saved.getReceiverName());
+    }
+
+    @Test
     void payToUpiRejectsInvalidBankPinFormat() throws Exception {
         String payload = """
                 {
