@@ -82,9 +82,13 @@ function statusIcon(s) {
 /* Render */
 function renderSidebar() {
   if (!state.user) return;
-  document.getElementById('sidebarName').textContent = state.user.fullName;
-  document.getElementById('sidebarEmail').textContent = state.user.email;
-  document.getElementById('sidebarAvatar').textContent = state.user.fullName.charAt(0).toUpperCase();
+  const sidebarName = document.getElementById('sidebarName');
+  const sidebarEmail = document.getElementById('sidebarEmail');
+  const sidebarAvatar = document.getElementById('sidebarAvatar');
+
+  if (sidebarName) sidebarName.textContent = state.user.fullName;
+  if (sidebarEmail) sidebarEmail.textContent = state.user.email;
+  if (sidebarAvatar) sidebarAvatar.textContent = state.user.fullName.charAt(0).toUpperCase();
 }
 
 function renderKPIs() {
