@@ -402,7 +402,7 @@ body.dark .tag-bank { background: #1e3050; color: #60a5fa; }
 
 .dashboard-hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, .9fr);
+  grid-template-columns: 1.6fr 1fr;
   gap: 16px;
   margin-bottom: 16px;
 }
