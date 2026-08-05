@@ -2,6 +2,8 @@ package org.example.truepay.api;
 
 import org.example.truepay.model.ErrorCode;
 import org.example.truepay.service.TruePayException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -14,6 +16,7 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(TruePayException.class)
     public ResponseEntity<ApiErrorResponse> handleKnown(TruePayException ex) {
@@ -38,8 +41,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex) {
+        log.error("Unhandled exception", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiErrorResponse(ErrorCode.PROCESSING_ERROR, ex.getMessage(), Instant.now()));
+                .body(new ApiErrorResponse(ErrorCode.PROCESSING_ERROR, "Internal processing error", Instant.now()));
     }
 }
 

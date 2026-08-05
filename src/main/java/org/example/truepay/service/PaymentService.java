@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -116,48 +117,82 @@ public class PaymentService {
         }
 
         UserProfile user = profileService.getUserOrThrow(userId);
-        BankAccount source = bankAccountService.getForPayment(userId, sourceAccountId);
-        bankAccountService.validateBankPin(source, bankPin);
 
-        validatePaymentFields(source, amount, currency, method, destinationUpi, receiverName, destinationAccount, destinationIfsc);
+        Payment payment = createPendingPayment(user, amount, currency, idempotencyKey, method,
+                destinationUpi, receiverName, destinationAccount, destinationIfsc, referenceRemark);
 
+        try {
+            BankAccount source = bankAccountRepository.findByIdForUpdate(sourceAccountId).orElse(null);
+            if (source == null || !source.getUser().getId().equals(userId)) {
+                failPayment(payment, ErrorCode.INVALID_ACCOUNT, "Source account not found");
+                return payment;
+            }
+
+            payment.setSourceAccount(source);
+            paymentRepository.save(payment);
+
+            bankAccountService.validateBankPin(source, bankPin);
+            validatePaymentFields(source, amount, currency, method, destinationUpi, receiverName, destinationAccount, destinationIfsc);
+
+            if (runFraudChecks(payment)) {
+                return payment;
+            }
+
+            if (source.getBalance().compareTo(amount) < 0) {
+                failPayment(payment, ErrorCode.INSUFFICIENT_FUNDS, "Insufficient balance");
+                return payment;
+            }
+
+            Optional<BankAccount> destination = findDestinationAccount(method, destinationAccount, destinationIfsc);
+            if (method == PaymentMethod.BANK && destination.isEmpty()) {
+                failPayment(payment, ErrorCode.INVALID_ACCOUNT, "Destination account not found");
+                return payment;
+            }
+
+            source.setBalance(source.getBalance().subtract(amount));
+            destination.ifPresent(receiver -> receiver.setBalance(receiver.getBalance().add(amount)));
+
+            payment.setStatus(PaymentStatus.SUCCESS);
+            payment.setErrorCode(null);
+            payment.setErrorMessage(null);
+            payment.setFailureReason(null);
+            recordStatus(payment, PaymentStatus.SUCCESS, "SYSTEM", "Payment completed successfully");
+
+            return paymentRepository.save(payment);
+        } catch (TruePayException ex) {
+            failPayment(payment, ex.getErrorCode(), ex.getMessage());
+            return payment;
+        } catch (Exception ex) {
+            failPayment(payment, ErrorCode.PROCESSING_ERROR, ex.getMessage());
+            return payment;
+        }
+    }
+
+    private Payment createPendingPayment(UserProfile user,
+                                         BigDecimal amount,
+                                         String currency,
+                                         String idempotencyKey,
+                                         PaymentMethod method,
+                                         String destinationUpi,
+                                         String receiverName,
+                                         String destinationAccount,
+                                         String destinationIfsc,
+                                         String referenceRemark) {
         Payment payment = new Payment();
         payment.setUser(user);
-        payment.setSourceAccount(source);
         payment.setMethod(method);
         payment.setAmount(amount);
-        payment.setCurrency(currency.toUpperCase());
+        payment.setCurrency(currency != null ? currency.toUpperCase(Locale.ROOT) : null);
         payment.setIdempotencyKey(idempotencyKey);
         payment.setDestinationUpiId(destinationUpi);
         payment.setReceiverName(receiverName);
         payment.setDestinationAccount(destinationAccount);
         payment.setDestinationIfsc(destinationIfsc != null ? destinationIfsc.toUpperCase(Locale.ROOT) : null);
         payment.setReferenceRemark(referenceRemark);
-        payment.setStatus(PaymentStatus.CREATED);
+        payment.setStatus(PaymentStatus.PENDING);
         paymentRepository.save(payment);
-        recordStatus(payment, PaymentStatus.CREATED, "API", "Payment submitted");
-
-        payment.setStatus(PaymentStatus.VALIDATED);
-        recordStatus(payment, PaymentStatus.VALIDATED, "SYSTEM", "Validation checks passed");
-
-        if (runFraudChecks(payment)) {
-            return payment;
-        }
-
-        if (source.getBalance().compareTo(amount) < 0) {
-            failPayment(payment, ErrorCode.INSUFFICIENT_FUNDS, "Insufficient funds in source account");
-            return payment;
-        }
-
-        payment.setStatus(PaymentStatus.SENT);
-        recordStatus(payment, PaymentStatus.SENT, "SYSTEM", "Payment sent to destination simulator");
-
-        source.setBalance(source.getBalance().subtract(amount));
-        creditReceiverIfInternal(method, destinationAccount, destinationIfsc, amount);
-        payment.setStatus(PaymentStatus.COMPLETED);
-        recordStatus(payment, PaymentStatus.COMPLETED, "SYSTEM", "Payment completed successfully");
-
-        return paymentRepository.save(payment);
+        recordStatus(payment, PaymentStatus.PENDING, "API", "Payment submitted");
+        return payment;
     }
 
     private void validatePaymentFields(BankAccount sourceAccount,
@@ -169,7 +204,7 @@ public class PaymentService {
                                        String destinationAccount,
                                        String destinationIfsc) {
         if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(MAX_AMOUNT) > 0) {
-            throw new TruePayException(ErrorCode.INVALID_AMOUNT, HttpStatus.BAD_REQUEST, "Amount must be > 0 and <= 1,000,000");
+            throw new TruePayException(ErrorCode.INVALID_AMOUNT, HttpStatus.BAD_REQUEST, "Invalid payment amount");
         }
 
         if (!SUPPORTED_CURRENCIES.contains(currency.toUpperCase())) {
@@ -207,16 +242,13 @@ public class PaymentService {
         }
     }
 
-    private void creditReceiverIfInternal(PaymentMethod method,
-                                          String destinationAccount,
-                                          String destinationIfsc,
-                                          BigDecimal amount) {
+    private Optional<BankAccount> findDestinationAccount(PaymentMethod method,
+                                                         String destinationAccount,
+                                                         String destinationIfsc) {
         if (method != PaymentMethod.BANK) {
-            return;
+            return Optional.empty();
         }
-
-        bankAccountRepository.findByAccountNumberAndIfscCode(destinationAccount, destinationIfsc.toUpperCase(Locale.ROOT))
-                .ifPresent(receiver -> receiver.setBalance(receiver.getBalance().add(amount)));
+        return bankAccountRepository.findByAccountNumberAndIfscCode(destinationAccount, destinationIfsc.toUpperCase(Locale.ROOT));
     }
 
     private boolean runFraudChecks(Payment payment) {
@@ -248,8 +280,26 @@ public class PaymentService {
         payment.setStatus(PaymentStatus.FAILED);
         payment.setErrorCode(errorCode);
         payment.setErrorMessage(message);
+        payment.setFailureReason(message);
         recordStatus(payment, PaymentStatus.FAILED, "SYSTEM", message);
         paymentRepository.save(payment);
+    }
+
+    @Transactional
+    public Payment cancelPayment(Long userId, UUID paymentId, String reason) {
+        Payment payment = getPayment(userId, paymentId);
+        if (payment.getStatus() != PaymentStatus.PENDING) {
+            throw new TruePayException(ErrorCode.INVALID_STATUS_TRANSITION, HttpStatus.CONFLICT,
+                    "Only pending transactions can be cancelled");
+        }
+
+        String cancellationReason = (reason == null || reason.isBlank()) ? "Cancelled by user" : reason.trim();
+        payment.setStatus(PaymentStatus.CANCELLED);
+        payment.setFailureReason(cancellationReason);
+        payment.setErrorCode(null);
+        payment.setErrorMessage(cancellationReason);
+        recordStatus(payment, PaymentStatus.CANCELLED, "USER", cancellationReason);
+        return paymentRepository.save(payment);
     }
 
     private void recordStatus(Payment payment, PaymentStatus status, String actor, String notes) {
@@ -311,7 +361,7 @@ public class PaymentService {
                 bankAccountService.combinedBalance(userId),
                 bankAccountService.listForUser(userId).size(),
                 paymentRepository.countByUserId(userId),
-                paymentRepository.countByUserIdAndStatus(userId, PaymentStatus.COMPLETED),
+                paymentRepository.countByUserIdAndStatus(userId, PaymentStatus.SUCCESS),
                 paymentRepository.countByUserIdAndStatus(userId, PaymentStatus.FAILED),
                 fraudAlertRepository.countByPaymentUserId(userId)
         );

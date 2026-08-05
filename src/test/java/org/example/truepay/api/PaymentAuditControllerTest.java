@@ -69,28 +69,28 @@ class PaymentAuditControllerTest {
         bankPayment.setReferenceRemark("August rent");
         paymentRepository.save(bankPayment);
 
-        createHistory(upiPayment, PaymentStatus.CREATED, "API", "Payment submitted", Instant.parse("2026-08-05T10:00:00Z"));
-        createHistory(upiPayment, PaymentStatus.COMPLETED, "SYSTEM", "Payment completed successfully", Instant.parse("2026-08-05T10:01:00Z"));
-        createHistory(bankPayment, PaymentStatus.CREATED, "API", "Bank transfer submitted", Instant.parse("2026-08-05T10:02:00Z"));
+        createHistory(upiPayment, PaymentStatus.PENDING, "API", "Payment submitted", Instant.parse("2026-08-05T10:00:00Z"));
+        createHistory(upiPayment, PaymentStatus.SUCCESS, "SYSTEM", "Payment completed successfully", Instant.parse("2026-08-05T10:01:00Z"));
+        createHistory(bankPayment, PaymentStatus.PENDING, "API", "Bank transfer submitted", Instant.parse("2026-08-05T10:02:00Z"));
 
         UserProfile otherUser = createUser("other@truepay.local", "9999999991");
         BankAccount otherAccount = createAccount(otherUser, "123456789013", "HDFC0005678");
         Payment otherPayment = createPayment(otherUser, otherAccount, PaymentMethod.UPI, new BigDecimal("99.00"), "INR", "upi-order-002");
         paymentRepository.save(otherPayment);
-        createHistory(otherPayment, PaymentStatus.CREATED, "API", "Should not be visible", Instant.parse("2026-08-05T10:03:00Z"));
+        createHistory(otherPayment, PaymentStatus.PENDING, "API", "Should not be visible", Instant.parse("2026-08-05T10:03:00Z"));
 
         mockMvc.perform(get("/api/v1/payments/audits")
                         .sessionAttr(SessionService.SESSION_USER_ID, owner.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)))
                 .andExpect(jsonPath("$[0].paymentId").value(bankPayment.getId().toString()))
-                .andExpect(jsonPath("$[0].status").value("CREATED"))
+                .andExpect(jsonPath("$[0].status").value("PENDING"))
                 .andExpect(jsonPath("$[0].triggeredBy").value("API"))
                 .andExpect(jsonPath("$[0].receiver").value("Rahul Kumar"))
                 .andExpect(jsonPath("$[0].referenceRemark").value("August rent"))
                 .andExpect(jsonPath("$[1].paymentId").value(upiPayment.getId().toString()))
-                .andExpect(jsonPath("$[1].status").value("COMPLETED"))
-                .andExpect(jsonPath("$[2].status").value("CREATED"));
+                .andExpect(jsonPath("$[1].status").value("SUCCESS"))
+                .andExpect(jsonPath("$[2].status").value("PENDING"));
     }
 
     @Test
@@ -139,7 +139,7 @@ class PaymentAuditControllerTest {
         payment.setAmount(amount);
         payment.setCurrency(currency);
         payment.setIdempotencyKey(idempotencyKey);
-        payment.setStatus(PaymentStatus.CREATED);
+        payment.setStatus(PaymentStatus.PENDING);
         return payment;
     }
 
