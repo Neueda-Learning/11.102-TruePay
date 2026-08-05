@@ -362,6 +362,8 @@ a { text-decoration: none; color: inherit; }
 .tag-bank { background: #dbeafe; color: #1d4ed8; }
 body.dark .tag-upi { background: #2a1f50; color: #9b6bff; }
 body.dark .tag-bank { background: #1e3050; color: #60a5fa; }
+.audit-latest { font-size: 14px; font-weight: 600; margin-top: 6px; }
+.audit-reference { margin-top: 4px; font-size: 11px; color: var(--text-sub); }
 
 /* Dashboard refresh style */
 .topbar {

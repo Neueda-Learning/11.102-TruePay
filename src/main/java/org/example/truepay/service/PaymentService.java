@@ -3,6 +3,7 @@ package org.example.truepay.service;
 import org.example.truepay.api.BankPaymentRequest;
 import org.example.truepay.api.DashboardSummaryResponse;
 import org.example.truepay.api.ReceiverVerificationResponse;
+import org.example.truepay.api.TransactionAuditResponse;
 import org.example.truepay.api.UpiPaymentRequest;
 import org.example.truepay.model.*;
 import org.example.truepay.repository.BankAccountRepository;
@@ -288,6 +289,27 @@ public class PaymentService {
         return statusHistoryRepository.findByPaymentIdOrderByChangedAtAsc(paymentId);
     }
 
+    @Transactional(readOnly = true)
+    public List<TransactionAuditResponse> getAuditHistory(Long userId) {
+        return statusHistoryRepository.findAuditHistoryByUserIdOrderByChangedAtDesc(userId).stream()
+                .map(history -> {
+                    Payment payment = history.getPayment();
+                    return new TransactionAuditResponse(
+                            payment.getId(),
+                            payment.getMethod(),
+                            payment.getAmount(),
+                            payment.getCurrency(),
+                            resolveReceiver(payment),
+                            history.getStatus(),
+                            history.getTriggeredBy(),
+                            history.getChangedAt(),
+                            history.getNotes(),
+                            payment.getReferenceRemark()
+                    );
+                })
+                .toList();
+    }
+
     public DashboardSummaryResponse getDashboardSummary(Long userId) {
         return new DashboardSummaryResponse(
                 bankAccountService.combinedBalance(userId),
@@ -312,6 +334,19 @@ public class PaymentService {
         return bankAccountRepository.findByAccountNumberAndIfscCode(accountNumber, normalizedIfsc)
                 .map(account -> new ReceiverVerificationResponse(true, account.getUser().getFullName(), "Receiver verified in TruePay"))
                 .orElseGet(() -> new ReceiverVerificationResponse(false, "External account", "Receiver not found in TruePay, transfer will be simulated"));
+    }
+
+    private String resolveReceiver(Payment payment) {
+        if (payment.getReceiverName() != null && !payment.getReceiverName().isBlank()) {
+            return payment.getReceiverName();
+        }
+        if (payment.getDestinationUpiId() != null && !payment.getDestinationUpiId().isBlank()) {
+            return payment.getDestinationUpiId();
+        }
+        if (payment.getDestinationAccount() != null && !payment.getDestinationAccount().isBlank()) {
+            return payment.getDestinationAccount();
+        }
+        return "-";
     }
 }
 

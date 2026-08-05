@@ -34,6 +34,12 @@ public class PaymentController {
         return toResponse(paymentService.createBankPayment(userId, request));
     }
 
+    @GetMapping("/audits")
+    public List<TransactionAuditResponse> listAudits(HttpSession session) {
+        Long userId = sessionService.requireUserId(session);
+        return paymentService.getAuditHistory(userId);
+    }
+
     @GetMapping("/{paymentId}")
     public PaymentResponse getPayment(@PathVariable UUID paymentId, HttpSession session) {
         Long userId = sessionService.requireUserId(session);

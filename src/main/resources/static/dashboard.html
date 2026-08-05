@@ -33,6 +33,7 @@
       <div class="nav-section-label">Manage</div>
       <button class="nav-item" data-page="accounts"><span class="icon">💰</span> Bank Accounts</button>
       <button class="nav-item" data-page="profile"><span class="icon">👤</span> Profile</button>
+      <button class="nav-item" data-page="audits"><span class="icon">🕵️</span> Audit History</button>
     </nav>
     <div class="sidebar-bottom">
       <div class="theme-toggle-row">
@@ -256,6 +257,10 @@
                 <input class="form-input" name="idempotencyKey" placeholder="upi-20260803-001" required />
               </div>
               <div class="form-group">
+                <label class="form-label">App PIN (4 digits)</label>
+                <input class="form-input" name="appPin" maxlength="4" pattern="\d{4}" placeholder="1234" required />
+              </div>
+              <div class="form-group">
                 <label class="form-label">Bank PIN (6 digits)</label>
                 <input class="form-input" name="bankPin" maxlength="6" pattern="\d{6}" placeholder="••••••" required />
               </div>
@@ -325,6 +330,10 @@
               <div class="form-group">
                 <label class="form-label">Idempotency Key</label>
                 <input class="form-input" name="idempotencyKey" placeholder="bank-20260803-001" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">App PIN (4 digits)</label>
+                <input class="form-input" name="appPin" maxlength="4" pattern="\d{4}" placeholder="1234" required />
               </div>
 
               <div class="form-section-title">Authorization</div>
@@ -443,6 +452,58 @@
             <p class="mt8">🛡️ Sensitive values remain <strong>hashed</strong> — never stored in plain text</p>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- PAGE: Audit History -->
+    <div class="page" id="page-audits">
+      <div class="section-header">
+        <div>
+          <div class="section-title">🕵️ Audit History</div>
+          <div class="topbar-sub" style="margin-top:6px;">Full audit trail for every transaction status change.</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <select class="form-select" id="auditStatusFilter" style="width:180px;padding:8px 12px;">
+            <option value="">All Statuses</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="FAILED">Failed</option>
+            <option value="CREATED">Created</option>
+            <option value="VALIDATED">Validated</option>
+            <option value="SENT">Sent</option>
+          </select>
+        </div>
+      </div>
+      <div class="page-grid-3 audit-kpi-grid">
+        <div class="panel">
+          <div class="kpi-label">Audit Events</div>
+          <div class="mini-kpi-value" id="auditEventCount">0</div>
+        </div>
+        <div class="panel">
+          <div class="kpi-label">Tracked Transactions</div>
+          <div class="mini-kpi-value" id="auditTransactionCount">0</div>
+        </div>
+        <div class="panel">
+          <div class="kpi-label">Latest Audit</div>
+          <div class="audit-latest" id="auditLatestAt">-</div>
+        </div>
+      </div>
+      <div class="panel">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Changed At</th>
+              <th>Payment ID</th>
+              <th>Method</th>
+              <th>Receiver</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Actor</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="auditTableBody"></tbody>
+        </table>
       </div>
     </div>
 
