@@ -125,7 +125,19 @@ function renderCharts() {
   state.charts.volumeChart = new Chart(document.getElementById('volumeChart'), {
     type: 'line',
     data: { labels, datasets: [{ label: 'Payments', data: lastSeven, borderColor: '#7c5cfc', tension: 0.35 }] },
-    options: { responsive: true, plugins: { legend: { display: false } } }
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0,
+            stepSize: 1
+          }
+        }
+      }
+    }
   });
 
   state.charts.statusChart = new Chart(document.getElementById('statusChart'), {
@@ -139,13 +151,37 @@ function renderCharts() {
   state.charts.methodChart = new Chart(document.getElementById('methodChart'), {
     type: 'bar',
     data: { labels: ['UPI', 'Bank Transfer'], datasets: [{ data: [upiCount, bankCount], backgroundColor: ['rgba(124,92,252,.8)', 'rgba(79,140,255,.8)'] }] },
-    options: { responsive: true, plugins: { legend: { display: false } } }
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0,
+            stepSize: 1
+          }
+        }
+      }
+    }
   });
 
   state.charts.riskChart = new Chart(document.getElementById('riskChart'), {
     type: 'bar',
     data: { labels: ['Completed', 'Failed', 'Fraud Alerts'], datasets: [{ data: [completed, failed, s.fraudAlerts], backgroundColor: ['rgba(34,197,94,.7)', 'rgba(239,68,68,.7)', 'rgba(251,146,60,.7)'] }] },
-    options: { responsive: true, plugins: { legend: { display: false } } }
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0,
+            stepSize: 1
+          }
+        }
+      }
+    }
   });
 
   const total = completed + failed + inProgress || 1;
