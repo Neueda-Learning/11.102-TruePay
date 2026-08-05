@@ -393,6 +393,11 @@ body.dark .tag-bank { background: #1e3050; color: #60a5fa; }
   font-size: 13px;
 }
 
+.topbar-search-wrap.search-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124, 92, 252, 0.15);
+}
+
 .dashboard-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;

@@ -10,12 +10,15 @@ import java.util.UUID;
 
 public record PaymentResponse(
         UUID id,
+        String paymentId,
         Long userId,
         Long sourceAccountId,
         PaymentMethod method,
         BigDecimal amount,
         String currency,
         PaymentStatus status,
+        String message,
+        String failureReason,
         ErrorCode errorCode,
         String errorMessage,
         String destinationUpiId,

@@ -23,8 +23,8 @@ public class Payment {
     @JoinColumn(name = "user_id", nullable = false)
     private UserProfile user;
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
-    @JoinColumn(name = "source_account_id", nullable = false)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "source_account_id")
     private BankAccount sourceAccount;
 
     @Enumerated(EnumType.STRING)
@@ -58,6 +58,8 @@ public class Payment {
     private ErrorCode errorCode;
 
     private String errorMessage;
+
+    private String failureReason;
 
     @Column(nullable = false)
     private Instant createdAt;
@@ -191,6 +193,14 @@ public class Payment {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    public void setFailureReason(String failureReason) {
+        this.failureReason = failureReason;
     }
 
     public Instant getCreatedAt() {

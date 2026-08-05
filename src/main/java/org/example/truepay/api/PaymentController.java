@@ -6,6 +6,7 @@ import org.example.truepay.model.Payment;
 import org.example.truepay.model.PaymentStatus;
 import org.example.truepay.service.PaymentService;
 import org.example.truepay.service.SessionService;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +33,15 @@ public class PaymentController {
     public PaymentResponse payToBank(@Valid @RequestBody BankPaymentRequest request, HttpSession session) {
         Long userId = sessionService.requireUserId(session);
         return toResponse(paymentService.createBankPayment(userId, request));
+    }
+
+    @PostMapping("/{paymentId}/cancel")
+    @ResponseStatus(HttpStatus.OK)
+    public PaymentResponse cancelPayment(@PathVariable UUID paymentId,
+                                         @RequestParam(required = false) String reason,
+                                         HttpSession session) {
+        Long userId = sessionService.requireUserId(session);
+        return toResponse(paymentService.cancelPayment(userId, paymentId, reason));
     }
 
     @GetMapping("/audits")
@@ -70,14 +80,25 @@ public class PaymentController {
     }
 
     private PaymentResponse toResponse(Payment payment) {
+        String message = payment.getStatus() == PaymentStatus.SUCCESS
+                ? "Payment completed successfully"
+                : payment.getStatus() == PaymentStatus.CANCELLED
+                ? "Payment cancelled"
+                : payment.getStatus() == PaymentStatus.FAILED
+                ? "Payment failed"
+                : "Payment pending";
+
         return new PaymentResponse(
                 payment.getId(),
+                payment.getId().toString(),
                 payment.getUser().getId(),
-                payment.getSourceAccount().getId(),
+                payment.getSourceAccount() != null ? payment.getSourceAccount().getId() : null,
                 payment.getMethod(),
                 payment.getAmount(),
                 payment.getCurrency(),
                 payment.getStatus(),
+                message,
+                payment.getFailureReason(),
                 payment.getErrorCode(),
                 payment.getErrorMessage(),
                 payment.getDestinationUpiId(),
