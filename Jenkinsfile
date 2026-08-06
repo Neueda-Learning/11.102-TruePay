@@ -97,6 +97,7 @@ echo "[INFO] Verifying Java runtime"
 echo "[INFO] JAVA_HOME=${JAVA_HOME:-<unset>}"
 command -v java
 java -version
+echo "[INFO] JAVA_HOME before Maven stages: ${JAVA_HOME:-<unset>}"
 JAVA_VERSION="$(java -version 2>&1 | head -n 1 | cut -d'"' -f2)"
 if [[ "${JAVA_VERSION}" != 21* ]]; then
   echo "[ERROR] Java 21 is required, found: ${JAVA_VERSION}"
@@ -115,6 +116,12 @@ if ! command -v mvn >/dev/null 2>&1; then
   echo "[ERROR] Maven is not installed or not available on PATH"
   exit 1
 fi
+
+JAVA_BIN="$(readlink -f "$(command -v java)")"
+JAVA_HOME_DETECTED="$(dirname "$(dirname "${JAVA_BIN}")")"
+export JAVA_HOME="${JAVA_HOME_DETECTED}"
+export PATH="${JAVA_HOME}/bin:${PATH}"
+
 echo "[INFO] Verifying Maven runtime"
 echo "[INFO] JAVA_HOME=${JAVA_HOME:-<unset>}"
 echo "[INFO] MAVEN_HOME=${MAVEN_HOME:-<unset>}"
@@ -133,6 +140,9 @@ fi
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
+JAVA_BIN="$(readlink -f "$(command -v java)")"
+export JAVA_HOME="$(dirname "$(dirname "${JAVA_BIN}")")"
+export PATH="${JAVA_HOME}/bin:${PATH}"
 echo "[INFO] Running mvn clean"
 mvn -B clean
 '''
@@ -143,6 +153,9 @@ mvn -B clean
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
+JAVA_BIN="$(readlink -f "$(command -v java)")"
+export JAVA_HOME="$(dirname "$(dirname "${JAVA_BIN}")")"
+export PATH="${JAVA_HOME}/bin:${PATH}"
 echo "[INFO] Running mvn test"
 mvn -B test
 '''
@@ -153,6 +166,9 @@ mvn -B test
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
+JAVA_BIN="$(readlink -f "$(command -v java)")"
+export JAVA_HOME="$(dirname "$(dirname "${JAVA_BIN}")")"
+export PATH="${JAVA_HOME}/bin:${PATH}"
 echo "[INFO] Running mvn package -DskipTests"
 mvn -B package -DskipTests
 '''
