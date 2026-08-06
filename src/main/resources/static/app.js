@@ -189,6 +189,8 @@ function fmtDate(d) {
   return d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 }
 
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+
 function toSearchText(value) {
   return String(value || '').toLowerCase().trim();
 }
@@ -783,13 +785,19 @@ if (topbarSearchInput) {
 
 
 async function submitBankAccountForm(form) {
+  const normalizedIfsc = form.ifscCode.value.trim().toUpperCase();
+  if (!IFSC_REGEX.test(normalizedIfsc)) {
+    showResult('bankAccountResult', 'Enter a valid IFSC code (e.g. HDFC0001234).', false);
+    return;
+  }
+
   try {
     await api('/api/v1/bank-accounts', {
       method: 'POST',
       body: JSON.stringify({
         bankName: form.bankName.value,
         accountNumber: form.accountNumber.value,
-        ifscCode: form.ifscCode.value,
+        ifscCode: normalizedIfsc,
         accountType: form.accountType.value,
         bankPin: form.bankPin.value,
         openingBalance: Number(form.openingBalance.value)
@@ -883,6 +891,10 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
       showResult('upiResult', 'Enter a UPI ID.', false);
       return;
     }
+    if (!/^[a-zA-Z0-9._-]+@[a-zA-Z][a-zA-Z0-9]{2,}$/.test(receiver)) {
+      showResult('upiResult', 'Invalid UPI ID format. Expected format: name@bank (e.g. merchant@upi, john@okaxis).', false);
+      return;
+    }
   }
 
   const source = findAccountById(f.sourceAccountId.value);
@@ -952,6 +964,10 @@ document.getElementById('bankTransferForm').addEventListener('submit', async (e)
   }
   if (!destinationIfsc) {
     showResult('bankTransferResult', 'Destination IFSC is required.', false);
+    return;
+  }
+  if (!IFSC_REGEX.test(destinationIfsc)) {
+    showResult('bankTransferResult', 'Enter a valid destination IFSC code (e.g. HDFC0001234).', false);
     return;
   }
 
