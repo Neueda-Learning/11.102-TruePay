@@ -1,5 +1,7 @@
 package org.example.truepay.api;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.truepay.model.BankAccount;
 import org.example.truepay.model.Payment;
 import org.example.truepay.model.PaymentMethod;
@@ -22,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 
@@ -36,6 +39,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class BankTransferAndAccountDeletionTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Autowired
     private MockMvc mockMvc;
@@ -104,12 +109,12 @@ class BankTransferAndAccountDeletionTest {
                         .content(payload))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.method").value("BANK_TRANSFER"))
-                .andExpect(jsonPath("$.status").value("SUCCESS"));
+                .andExpect(jsonPath("$.status").value("PENDING"));
 
         mockMvc.perform(get("/api/v1/payments")
                         .sessionAttr(SessionService.SESSION_USER_ID, owner.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].status").value("SUCCESS"));
+                .andExpect(jsonPath("$[0].status").value("PENDING"));
     }
 
     @Test
@@ -154,6 +159,48 @@ class BankTransferAndAccountDeletionTest {
                         .sessionAttr(SessionService.SESSION_USER_ID, owner.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("COMPLETED"));
+    }
+
+    @Test
+    void cancelledTransferAppearsInPaymentAndAuditHistory() throws Exception {
+        String payload = """
+                {
+                  "sourceAccount": "%s",
+                  "destinationAccount": "%s",
+                  "destinationIfsc": "%s",
+                  "amount": 150.00,
+                  "currency": "INR",
+                  "bankPin": "123456"
+                }
+                """.formatted(source.getAccountNumber(), destination.getAccountNumber(), destination.getIfscCode());
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/payments/bank-transfer")
+                        .sessionAttr(SessionService.SESSION_USER_ID, owner.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andReturn();
+
+        JsonNode created = OBJECT_MAPPER.readTree(createResult.getResponse().getContentAsString());
+        String paymentId = created.get("id").asText();
+
+        mockMvc.perform(post("/api/v1/payments/{paymentId}/cancel", paymentId)
+                        .sessionAttr(SessionService.SESSION_USER_ID, owner.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        mockMvc.perform(get("/api/v1/payments")
+                        .sessionAttr(SessionService.SESSION_USER_ID, owner.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(paymentId))
+                .andExpect(jsonPath("$[0].status").value("CANCELLED"));
+
+        mockMvc.perform(get("/api/v1/payments/audits")
+                        .sessionAttr(SessionService.SESSION_USER_ID, owner.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].paymentId").value(paymentId))
+                .andExpect(jsonPath("$[0].status").value("CANCELLED"));
     }
 
     private UserProfile createUser(String email, String mobile) {

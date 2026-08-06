@@ -272,7 +272,10 @@
                 <input class="form-input" name="bankPin" maxlength="6" pattern="\d{6}" placeholder="••••••" required />
               </div>
             </div>
-            <button class="btn btn-primary mt16" type="submit" style="width:100%;">⚡ Send UPI Payment</button>
+            <div class="mt16" style="display:flex;gap:10px;">
+              <button class="btn btn-primary" type="submit" style="flex:1;">⚡ Send UPI Payment</button>
+              <button class="btn btn-secondary" id="upiCancelButton" type="button" style="flex:1;display:none;" disabled>Cancel Payment</button>
+            </div>
           </form>
           <div id="upiResult" class="verify-result mt8"></div>
         </div>
@@ -332,7 +335,10 @@
               </div>
 
             </div>
-            <button class="btn btn-primary mt16" type="submit" style="width:100%;">🏦 Initiate Transfer</button>
+            <div class="mt16" style="display:flex;gap:10px;">
+              <button class="btn btn-primary" type="submit" style="flex:1;">🏦 Initiate Transfer</button>
+              <button class="btn btn-secondary" id="bankCancelButton" type="button" style="flex:1;display:none;" disabled>Cancel Transfer</button>
+            </div>
           </form>
           <div id="bankTransferResult" class="verify-result mt8"></div>
         </div>
@@ -531,6 +537,6 @@
   </div><!-- /main -->
 </div><!-- /app-shell -->
 
-<script src="/app.js?v=20260805"></script>
+<script src="/app.js?v=20260806"></script>
 </body>
 </html>

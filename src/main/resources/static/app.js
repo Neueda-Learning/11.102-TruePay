@@ -682,6 +682,88 @@ function showResult(id, message, ok) {
   el.className = 'verify-result ' + (ok ? 'show-ok' : 'show-err');
 }
 
+const pendingClientPayments = {
+  upi: null,
+  bank: null
+};
+
+function clearPendingClientPayment(type) {
+  const pending = pendingClientPayments[type];
+  if (!pending) return;
+  clearTimeout(pending.timeoutId);
+  clearInterval(pending.intervalId);
+  if (pending.cancelButton) {
+    pending.cancelButton.disabled = true;
+    pending.cancelButton.style.display = 'none';
+  }
+  pendingClientPayments[type] = null;
+}
+
+function startClientCancellationWindow(type, resultId, cancelButtonId, countdownLabel, paymentId) {
+  clearPendingClientPayment(type);
+
+  const cancelButton = document.getElementById(cancelButtonId);
+  let secondsLeft = 5;
+  showResult(resultId, `${countdownLabel} You can cancel in ${secondsLeft}s.`, true);
+
+  if (cancelButton) {
+    cancelButton.style.display = '';
+    cancelButton.disabled = false;
+  }
+
+  const intervalId = setInterval(() => {
+    secondsLeft -= 1;
+    if (secondsLeft > 0) {
+      showResult(resultId, `${countdownLabel} You can cancel in ${secondsLeft}s.`, true);
+    }
+  }, 1000);
+
+  const timeoutId = setTimeout(async () => {
+    clearPendingClientPayment(type);
+    showResult(resultId, 'Cancellation window ended. Processing payment...', true);
+    try {
+      const latest = await api(`/api/v1/payments/${paymentId}`);
+      const paymentSucceeded = latest.status === 'SUCCESS' || latest.status === 'PENDING';
+      const paymentMessage = latest.status === 'SUCCESS'
+        ? `Payment completed successfully. ID: ${String(latest.id).slice(0, 8)}...`
+        : latest.status === 'PENDING'
+        ? `Payment is being processed. ID: ${String(latest.id).slice(0, 8)}...`
+        : (latest.failureReason || latest.errorMessage || `Payment ${latest.status}.`);
+      showResult(resultId, paymentMessage, paymentSucceeded);
+    } catch (err) {
+      showResult(resultId, err.message, false);
+    }
+    try {
+      await refreshPaymentData();
+    } catch (refreshErr) {
+      console.warn('Payment status refresh was partial after cancellation window.', refreshErr);
+    }
+  }, 5000);
+
+  pendingClientPayments[type] = { timeoutId, intervalId, cancelButton, paymentId };
+}
+
+async function cancelClientPendingPayment(type, resultId, message) {
+  const pending = pendingClientPayments[type];
+  if (!pending) {
+    showResult(resultId, 'No pending payment to cancel.', false);
+    return;
+  }
+
+  try {
+    await api(`/api/v1/payments/${pending.paymentId}/cancel`, { method: 'POST' });
+    clearPendingClientPayment(type);
+    showResult(resultId, message, true);
+    try {
+      await refreshPaymentData();
+    } catch (refreshErr) {
+      console.warn('Payment cancelled, but payment data refresh was partial.', refreshErr);
+    }
+  } catch (err) {
+    showResult(resultId, err.message, false);
+  }
+}
+
 /* Event wiring */
 document.getElementById('themeSwitch').addEventListener('click', toggleTheme);
 const colorBlindSwitch = document.getElementById('colorBlindSwitch');
@@ -799,6 +881,10 @@ async function refreshPaymentData() {
 document.getElementById('upiForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target;
+  if (pendingClientPayments.upi) {
+    showResult('upiResult', 'A UPI payment is already waiting. Cancel it or wait for processing.', false);
+    return;
+  }
   const recipientType = document.getElementById('upiRecipientType').value;
 
   let receiver = '';
@@ -837,28 +923,42 @@ document.getElementById('upiForm').addEventListener('submit', async (e) => {
         bankPin: f.bankPin.value
       })
     });
+
+    if (p.status !== 'PENDING') {
+      const paymentSucceeded = p.status === 'SUCCESS';
+      const paymentMessage = paymentSucceeded
+        ? `Payment completed successfully. ID: ${String(p.id).slice(0, 8)}...`
+        : (p.failureReason || p.errorMessage || `Payment ${p.status}.`);
+      showResult('upiResult', paymentMessage, paymentSucceeded);
+      await refreshPaymentData();
+      return;
+    }
+
     f.reset();
     document.getElementById('upiRecipientType').value = 'upi';
     document.getElementById('upiIdGroup').style.display = '';
     document.getElementById('mobileGroup').style.display = 'none';
-    const paymentSucceeded = p.status === 'SUCCESS';
-    const paymentMessage = paymentSucceeded
-      ? `Payment completed successfully. ID: ${String(p.id).slice(0, 8)}...`
-      : (p.failureReason || p.errorMessage || `Payment ${p.status}.`);
-    showResult('upiResult', paymentMessage, paymentSucceeded);
-    try {
-      await refreshPaymentData();
-    } catch (refreshErr) {
-      console.warn('UPI payment processed, but payment data refresh was partial.', refreshErr);
-    }
+    startClientCancellationWindow('upi', 'upiResult', 'upiCancelButton', `UPI payment submitted (ID: ${String(p.id).slice(0, 8)}...).`, p.id);
+    await refreshPaymentData();
   } catch (err) {
     showResult('upiResult', err.message, false);
   }
 });
 
+const upiCancelButton = document.getElementById('upiCancelButton');
+if (upiCancelButton) {
+  upiCancelButton.addEventListener('click', async () => {
+    await cancelClientPendingPayment('upi', 'upiResult', 'UPI payment cancelled.');
+  });
+}
+
 document.getElementById('bankTransferForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target;
+  if (pendingClientPayments.bank) {
+    showResult('bankTransferResult', 'A bank transfer is already waiting. Cancel it or wait for processing.', false);
+    return;
+  }
   const destinationAccountInput = f.elements.namedItem('destinationAccount');
   const destinationIfscInput = f.elements.namedItem('destinationIfsc');
   const receiverNameInput = f.elements.namedItem('receiverName');
@@ -888,21 +988,31 @@ document.getElementById('bankTransferForm').addEventListener('submit', async (e)
         receiverName: receiverName || null
       })
     });
-    f.reset();
-    const paymentSucceeded = p.status === 'SUCCESS';
-    const paymentMessage = paymentSucceeded
-      ? `Transfer completed successfully. ID: ${String(p.id).slice(0, 8)}...`
-      : (p.failureReason || p.errorMessage || `Transfer ${p.status}.`);
-    showResult('bankTransferResult', paymentMessage, paymentSucceeded);
-    try {
+
+    if (p.status !== 'PENDING') {
+      const paymentSucceeded = p.status === 'SUCCESS';
+      const paymentMessage = paymentSucceeded
+        ? `Transfer completed successfully. ID: ${String(p.id).slice(0, 8)}...`
+        : (p.failureReason || p.errorMessage || `Transfer ${p.status}.`);
+      showResult('bankTransferResult', paymentMessage, paymentSucceeded);
       await refreshPaymentData();
-    } catch (refreshErr) {
-      console.warn('Bank transfer processed, but payment data refresh was partial.', refreshErr);
+      return;
     }
+
+    f.reset();
+    startClientCancellationWindow('bank', 'bankTransferResult', 'bankCancelButton', `Bank transfer submitted (ID: ${String(p.id).slice(0, 8)}...).`, p.id);
+    await refreshPaymentData();
   } catch (err) {
     showResult('bankTransferResult', err.message, false);
   }
 });
+
+const bankCancelButton = document.getElementById('bankCancelButton');
+if (bankCancelButton) {
+  bankCancelButton.addEventListener('click', async () => {
+    await cancelClientPendingPayment('bank', 'bankTransferResult', 'Bank transfer cancelled.');
+  });
+}
 
 const paymentLimitsForm = document.getElementById('paymentLimitsForm');
 if (paymentLimitsForm) {
