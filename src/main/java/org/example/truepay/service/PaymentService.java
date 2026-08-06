@@ -450,6 +450,17 @@ public class PaymentService {
             throw new TruePayException(ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST,
                     "Sender and receiver accounts must be different");
         }
+
+        if (method == PaymentMethod.BANK_TRANSFER || method == PaymentMethod.BANK) {
+            String normalizedCurrency = currency.toUpperCase(Locale.ROOT);
+            boolean internalDestination = bankAccountRepository
+                    .findByAccountNumberAndIfscCode(destinationAccount, destinationIfsc.toUpperCase(Locale.ROOT))
+                    .isPresent();
+            if (internalDestination && !"INR".equals(normalizedCurrency)) {
+                throw new TruePayException(ErrorCode.INVALID_CURRENCY, HttpStatus.BAD_REQUEST,
+                        "This is an INR account. Please transfer in INR only");
+            }
+        }
     }
 
     private BankAccount resolveDestinationAccount(Payment payment,

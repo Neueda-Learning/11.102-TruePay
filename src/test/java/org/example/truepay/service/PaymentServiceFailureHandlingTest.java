@@ -135,6 +135,34 @@ class PaymentServiceFailureHandlingTest {
     }
 
     @Test
+    void internalBankTransferWithNonInrCurrencyMarksPaymentFailed() {
+        UserProfile sender = createUser("non-inr-sender@truepay.local", "9999999010");
+        BankAccount source = createAccount(sender, "111122223341", "HDFC0001119", new BigDecimal("500.00"), "123456");
+
+        UserProfile receiver = createUser("non-inr-receiver@truepay.local", "9999999011");
+        BankAccount destination = createAccount(receiver, "444455556667", "HDFC0002223", new BigDecimal("10.00"), "654321");
+
+        BankPaymentRequest request = new BankPaymentRequest(
+                source.getId(),
+                new BigDecimal("100.00"),
+                "USD",
+                null,
+                "Receiver",
+                destination.getAccountNumber(),
+                destination.getIfscCode(),
+                "test",
+                "123456"
+        );
+
+        Payment payment = paymentService.createBankPayment(sender.getId(), request);
+
+        assertEquals(PaymentStatus.FAILED, payment.getStatus());
+        assertEquals("This is an INR account. Please transfer in INR only", payment.getFailureReason());
+        assertEquals(new BigDecimal("500.00"), reloadAccount(source.getId()).getBalance());
+        assertEquals(new BigDecimal("10.00"), reloadAccount(destination.getId()).getBalance());
+    }
+
+    @Test
     void wrongBankPinMarksPaymentFailed() {
         UserProfile user = createUser("wrong-pin@truepay.local", "9999999007");
         BankAccount source = createAccount(user, "111122223338", "HDFC0001116", new BigDecimal("500.00"), "123456");
