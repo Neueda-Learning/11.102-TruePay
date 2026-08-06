@@ -16,7 +16,7 @@ pipeline {
     environment {
         DEFAULT_GIT_URL = 'https://github.com/Neueda-Learning/11.102-TruePay.git'
         APP_PORT = '8082'
-        DOCKER_ENV_FILE = '.env.docker'
+        DOCKER_ENV_FILE = '.env.ci'
         DOCKER_IMAGE = "truepay:${env.BUILD_NUMBER}"
     }
 
@@ -77,6 +77,7 @@ if ! command -v java >/dev/null 2>&1; then
 fi
 echo "[INFO] Verifying Java runtime"
 java -version
+echo "[INFO] JAVA_HOME before Maven stages: ${JAVA_HOME:-<unset>}"
 JAVA_VERSION="$(java -version 2>&1 | head -n 1 | cut -d'"' -f2)"
 if [[ "${JAVA_VERSION}" != 21* ]]; then
   echo "[ERROR] Java 21 is required, found: ${JAVA_VERSION}"
@@ -95,8 +96,21 @@ if ! command -v mvn >/dev/null 2>&1; then
   echo "[ERROR] Maven is not installed or not available on PATH"
   exit 1
 fi
+
+JAVA_BIN="$(readlink -f "$(command -v java)")"
+JAVA_HOME_DETECTED="$(dirname "$(dirname "${JAVA_BIN}")")"
+export JAVA_HOME="${JAVA_HOME_DETECTED}"
+export PATH="${JAVA_HOME}/bin:${PATH}"
+
 echo "[INFO] Verifying Maven runtime"
-mvn -version
+echo "[INFO] JAVA_HOME forced to: ${JAVA_HOME}"
+MVN_OUTPUT="$(mvn -version)"
+echo "${MVN_OUTPUT}"
+MVN_JAVA_VERSION="$(echo "${MVN_OUTPUT}" | awk -F': ' '/Java version/{print $2}' | awk -F',' '{print $1}')"
+if [[ "${MVN_JAVA_VERSION}" != 21* ]]; then
+  echo "[ERROR] Maven is running on Java ${MVN_JAVA_VERSION}. Java 21 is required."
+  exit 1
+fi
 '''
             }
         }
@@ -105,6 +119,9 @@ mvn -version
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
+JAVA_BIN="$(readlink -f "$(command -v java)")"
+export JAVA_HOME="$(dirname "$(dirname "${JAVA_BIN}")")"
+export PATH="${JAVA_HOME}/bin:${PATH}"
 echo "[INFO] Running mvn clean"
 mvn -B clean
 '''
@@ -115,6 +132,9 @@ mvn -B clean
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
+JAVA_BIN="$(readlink -f "$(command -v java)")"
+export JAVA_HOME="$(dirname "$(dirname "${JAVA_BIN}")")"
+export PATH="${JAVA_HOME}/bin:${PATH}"
 echo "[INFO] Running mvn test"
 mvn -B test
 '''
@@ -125,6 +145,9 @@ mvn -B test
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
+JAVA_BIN="$(readlink -f "$(command -v java)")"
+export JAVA_HOME="$(dirname "$(dirname "${JAVA_BIN}")")"
+export PATH="${JAVA_HOME}/bin:${PATH}"
 echo "[INFO] Running mvn package -DskipTests"
 mvn -B package -DskipTests
 '''
@@ -176,7 +199,7 @@ docker build -t "${DOCKER_IMAGE}" .
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
-cat > .env.ci <<EOF
+cat > "${DOCKER_ENV_FILE}" <<EOF
 SERVER_PORT=8082
 DB_URL=${DB_URL}
 DB_USER=${DB_USER}
@@ -187,8 +210,8 @@ MYSQL_USER=${DB_USER}
 MYSQL_PASSWORD=${DB_PASSWORD}
 EOF
 
-echo "[INFO] Generated .env.ci for compose"
-sed 's/=.*/=***MASKED***/' .env.ci | sed 's/^SERVER_PORT=.*/SERVER_PORT=8082/'
+echo "[INFO] Generated ${DOCKER_ENV_FILE} for compose"
+sed 's/=.*/=***MASKED***/' "${DOCKER_ENV_FILE}" | sed 's/^SERVER_PORT=.*/SERVER_PORT=8082/'
 '''
             }
         }
@@ -204,8 +227,8 @@ else
   COMPOSE="docker-compose"
 fi
 
-$COMPOSE --env-file .env.ci up -d --build
-$COMPOSE --env-file .env.ci ps
+$COMPOSE --env-file "${DOCKER_ENV_FILE}" up -d --build
+$COMPOSE --env-file "${DOCKER_ENV_FILE}" ps
 '''
             }
         }
@@ -229,7 +252,7 @@ if docker compose version > /dev/null 2>&1; then
 else
   COMPOSE="docker-compose"
 fi
-$COMPOSE --env-file .env.ci logs mysql || true
+$COMPOSE --env-file "${DOCKER_ENV_FILE}" logs mysql || true
 exit 1
 '''
             }
@@ -243,22 +266,28 @@ set -a
 source "${DOCKER_ENV_FILE}"
 set +a
 
-ACTIVE_DB="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT DATABASE();"' | tr -d '\r')"
-SQL_USER="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT CURRENT_USER();"' | tr -d '\r')"
+if docker compose version > /dev/null 2>&1; then
+  COMPOSE="docker compose"
+else
+  COMPOSE="docker-compose"
+fi
+
+ACTIVE_DB="$($COMPOSE --env-file "${DOCKER_ENV_FILE}" exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT DATABASE();"' | tr -d '\r')"
+SQL_USER="$($COMPOSE --env-file "${DOCKER_ENV_FILE}" exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT CURRENT_USER();"' | tr -d '\r')"
 echo "[INFO] MySQL SQL session user: ${SQL_USER:-<unknown>}"
 echo "[INFO] MySQL active database before USE: ${ACTIVE_DB:-<none>}"
 
-DB_FOUND="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SHOW DATABASES LIKE \\\"$MYSQL_DATABASE\\\";"' | tr -d '\r')"
+DB_FOUND="$($COMPOSE --env-file "${DOCKER_ENV_FILE}" exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SHOW DATABASES LIKE \\\"$MYSQL_DATABASE\\\";"' | tr -d '\r')"
 if [[ "${DB_FOUND}" != "${MYSQL_DATABASE}" ]]; then
   echo "[ERROR] Expected database ${MYSQL_DATABASE} not found. Found: ${DB_FOUND:-<none>}"
-  docker compose logs mysql || true
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" logs mysql || true
   exit 1
 fi
 
-TABLE_FOUND="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "USE $MYSQL_DATABASE; SHOW TABLES LIKE \\\"user_profiles\\\";"' | tr -d '\r')"
+TABLE_FOUND="$($COMPOSE --env-file "${DOCKER_ENV_FILE}" exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "USE $MYSQL_DATABASE; SHOW TABLES LIKE \\\"user_profiles\\\";"' | tr -d '\r')"
 if [[ "${TABLE_FOUND}" != "user_profiles" ]]; then
   echo "[ERROR] Expected table user_profiles not found in database ${MYSQL_DATABASE}"
-  docker compose logs mysql || true
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" logs mysql || true
   exit 1
 fi
 
@@ -289,7 +318,7 @@ if docker compose version > /dev/null 2>&1; then
 else
   COMPOSE="docker-compose"
 fi
-$COMPOSE --env-file .env.ci logs app || true
+$COMPOSE --env-file "${DOCKER_ENV_FILE}" logs app || true
 exit 1
 '''
             }
@@ -307,12 +336,16 @@ else
 fi
 
 echo "[INFO] Docker compose service status"
-$COMPOSE --env-file .env.ci ps
-echo "[INFO] Recent compose logs"
-$COMPOSE --env-file .env.ci logs --tail=150
-echo "[INFO] Cleaning up docker compose resources"
-$COMPOSE --env-file .env.ci down -v --remove-orphans
-rm -f .env.ci
+if [[ -f "${DOCKER_ENV_FILE}" ]]; then
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" ps || true
+  echo "[INFO] Recent compose logs"
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" logs --tail=150 || true
+  echo "[INFO] Cleaning up docker compose resources"
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" down -v --remove-orphans || true
+  rm -f "${DOCKER_ENV_FILE}"
+else
+  echo "[WARN] ${DOCKER_ENV_FILE} not found; skipping compose diagnostics and cleanup"
+fi
 '''
         }
     }
