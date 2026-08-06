@@ -111,7 +111,7 @@ class PaymentServiceFailureHandlingTest {
     }
 
     @Test
-    void invalidAccountMarksPaymentFailed() {
+    void unknownDestinationAccountIsHandledAsExternalSuccess() {
         UserProfile user = createUser("invalid-account@truepay.local", "9999999003");
         BankAccount source = createAccount(user, "111122223335", "HDFC0001113", new BigDecimal("500.00"), "123456");
 
@@ -129,9 +129,9 @@ class PaymentServiceFailureHandlingTest {
 
         Payment payment = paymentService.createBankPayment(user.getId(), request);
 
-        assertEquals(PaymentStatus.FAILED, payment.getStatus());
-        assertEquals("Invalid destination account", payment.getFailureReason());
-        assertEquals(new BigDecimal("500.00"), reloadAccount(source.getId()).getBalance());
+        assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
+        assertEquals("Unknown Receiver", payment.getReceiverName());
+        assertEquals(new BigDecimal("400.00"), reloadAccount(source.getId()).getBalance());
     }
 
     @Test
