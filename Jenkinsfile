@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    tools {
+        jdk 'jdk21'
+        maven 'maven3'
+    }
+
     options {
         skipDefaultCheckout(true)
         timestamps()
@@ -16,7 +21,10 @@ pipeline {
     environment {
         DEFAULT_GIT_URL = 'https://github.com/Neueda-Learning/11.102-TruePay.git'
         APP_PORT = '8082'
-        DOCKER_ENV_FILE = '.env.docker'
+        DB_URL = 'jdbc:mysql://mysql:3306/truepay'
+        DB_USER = 'truepay'
+        DB_PASSWORD = 'n3u3da!'
+        DOCKER_ENV_FILE = '.env.ci'
         DOCKER_IMAGE = "truepay:${env.BUILD_NUMBER}"
     }
 
@@ -67,6 +75,16 @@ fi
             }
         }
 
+        stage('Resolve Build Tools') {
+            steps {
+                script {
+                    env.JAVA_HOME = tool name: 'jdk21', type: 'hudson.model.JDK'
+                    env.MAVEN_HOME = tool name: 'maven3', type: 'hudson.tasks.Maven$MavenInstallation'
+                    env.PATH = "${env.MAVEN_HOME}/bin:${env.JAVA_HOME}/bin:${env.PATH}"
+                }
+            }
+        }
+
         stage('Verify Java 21') {
             steps {
                 sh '''#!/usr/bin/env bash
@@ -76,6 +94,8 @@ if ! command -v java >/dev/null 2>&1; then
   exit 1
 fi
 echo "[INFO] Verifying Java runtime"
+echo "[INFO] JAVA_HOME=${JAVA_HOME:-<unset>}"
+command -v java
 java -version
 JAVA_VERSION="$(java -version 2>&1 | head -n 1 | cut -d'"' -f2)"
 if [[ "${JAVA_VERSION}" != 21* ]]; then
@@ -96,7 +116,15 @@ if ! command -v mvn >/dev/null 2>&1; then
   exit 1
 fi
 echo "[INFO] Verifying Maven runtime"
+echo "[INFO] JAVA_HOME=${JAVA_HOME:-<unset>}"
+echo "[INFO] MAVEN_HOME=${MAVEN_HOME:-<unset>}"
+command -v mvn
 mvn -version
+MVN_JAVA_VERSION="$(mvn -version 2>&1 | awk -F': ' '/Java version:/ {print $2}' | cut -d',' -f1 | tr -d '[:space:]')"
+if [[ "${MVN_JAVA_VERSION}" != 21* ]]; then
+  echo "[ERROR] Maven is using Java ${MVN_JAVA_VERSION:-<unknown>} instead of Java 21"
+  exit 1
+fi
 '''
             }
         }
@@ -176,7 +204,7 @@ docker build -t "${DOCKER_IMAGE}" .
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
-cat > .env.ci <<EOF
+cat > "${DOCKER_ENV_FILE}" <<EOF
 SERVER_PORT=8082
 DB_URL=${DB_URL}
 DB_USER=${DB_USER}
@@ -187,8 +215,8 @@ MYSQL_USER=${DB_USER}
 MYSQL_PASSWORD=${DB_PASSWORD}
 EOF
 
-echo "[INFO] Generated .env.ci for compose"
-sed 's/=.*/=***MASKED***/' .env.ci | sed 's/^SERVER_PORT=.*/SERVER_PORT=8082/'
+echo "[INFO] Generated ${DOCKER_ENV_FILE} for compose"
+sed 's/=.*/=***MASKED***/' "${DOCKER_ENV_FILE}" | sed 's/^SERVER_PORT=.*/SERVER_PORT=8082/'
 '''
             }
         }
@@ -204,8 +232,8 @@ else
   COMPOSE="docker-compose"
 fi
 
-$COMPOSE --env-file .env.ci up -d --build
-$COMPOSE --env-file .env.ci ps
+$COMPOSE --env-file "${DOCKER_ENV_FILE}" up -d --build
+$COMPOSE --env-file "${DOCKER_ENV_FILE}" ps
 '''
             }
         }
@@ -229,7 +257,7 @@ if docker compose version > /dev/null 2>&1; then
 else
   COMPOSE="docker-compose"
 fi
-$COMPOSE --env-file .env.ci logs mysql || true
+$COMPOSE --env-file "${DOCKER_ENV_FILE}" logs mysql || true
 exit 1
 '''
             }
@@ -243,22 +271,28 @@ set -a
 source "${DOCKER_ENV_FILE}"
 set +a
 
-ACTIVE_DB="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT DATABASE();"' | tr -d '\r')"
-SQL_USER="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT CURRENT_USER();"' | tr -d '\r')"
+if docker compose version > /dev/null 2>&1; then
+  COMPOSE="docker compose"
+else
+  COMPOSE="docker-compose"
+fi
+
+ACTIVE_DB="$( $COMPOSE exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT DATABASE();"' | tr -d '\r')"
+SQL_USER="$( $COMPOSE exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT CURRENT_USER();"' | tr -d '\r')"
 echo "[INFO] MySQL SQL session user: ${SQL_USER:-<unknown>}"
 echo "[INFO] MySQL active database before USE: ${ACTIVE_DB:-<none>}"
 
-DB_FOUND="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SHOW DATABASES LIKE \\\"$MYSQL_DATABASE\\\";"' | tr -d '\r')"
+DB_FOUND="$( $COMPOSE exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SHOW DATABASES LIKE \\\"$MYSQL_DATABASE\\\";"' | tr -d '\r')"
 if [[ "${DB_FOUND}" != "${MYSQL_DATABASE}" ]]; then
   echo "[ERROR] Expected database ${MYSQL_DATABASE} not found. Found: ${DB_FOUND:-<none>}"
-  docker compose logs mysql || true
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" logs mysql || true
   exit 1
 fi
 
-TABLE_FOUND="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "USE $MYSQL_DATABASE; SHOW TABLES LIKE \\\"user_profiles\\\";"' | tr -d '\r')"
+TABLE_FOUND="$( $COMPOSE exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "USE $MYSQL_DATABASE; SHOW TABLES LIKE \\\"user_profiles\\\";"' | tr -d '\r')"
 if [[ "${TABLE_FOUND}" != "user_profiles" ]]; then
   echo "[ERROR] Expected table user_profiles not found in database ${MYSQL_DATABASE}"
-  docker compose logs mysql || true
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" logs mysql || true
   exit 1
 fi
 
@@ -274,6 +308,13 @@ set -euo pipefail
 set -a
 source "${DOCKER_ENV_FILE}"
 set +a
+
+if docker compose version > /dev/null 2>&1; then
+  COMPOSE="docker compose"
+else
+  COMPOSE="docker-compose"
+fi
+
 APP_PORT="${SERVER_PORT:-8082}"
 echo "[INFO] Verifying Spring Boot app on port ${APP_PORT}"
 for i in $(seq 1 60); do
@@ -284,12 +325,7 @@ for i in $(seq 1 60); do
   sleep 5
 done
 echo "[ERROR] Application failed to start on port 8082"
-if docker compose version > /dev/null 2>&1; then
-  COMPOSE="docker compose"
-else
-  COMPOSE="docker-compose"
-fi
-$COMPOSE --env-file .env.ci logs app || true
+$COMPOSE --env-file "${DOCKER_ENV_FILE}" logs app || true
 exit 1
 '''
             }
@@ -298,6 +334,8 @@ exit 1
 
     post {
         always {
+            junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: true, keepLongStdio: true
+            archiveArtifacts artifacts: 'target/*.jar,target/surefire-reports/**,ci-artifacts/**', allowEmptyArchive: true
             sh '''#!/usr/bin/env bash
 set +e
 if docker compose version > /dev/null 2>&1; then
@@ -306,13 +344,20 @@ else
   COMPOSE="docker-compose"
 fi
 
-echo "[INFO] Docker compose service status"
-$COMPOSE --env-file .env.ci ps
-echo "[INFO] Recent compose logs"
-$COMPOSE --env-file .env.ci logs --tail=150
-echo "[INFO] Cleaning up docker compose resources"
-$COMPOSE --env-file .env.ci down -v --remove-orphans
-rm -f .env.ci
+mkdir -p ci-artifacts
+
+if [[ -f "${DOCKER_ENV_FILE}" ]]; then
+  echo "[INFO] Docker compose service status"
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" ps | tee ci-artifacts/docker-compose-ps.txt || true
+  echo "[INFO] Recent compose logs"
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" logs --tail=150 | tee ci-artifacts/docker-compose-logs.txt || true
+  echo "[INFO] Cleaning up docker compose resources"
+  $COMPOSE --env-file "${DOCKER_ENV_FILE}" down -v --remove-orphans || true
+  rm -f "${DOCKER_ENV_FILE}"
+else
+  echo "[INFO] Skipping docker compose cleanup because ${DOCKER_ENV_FILE} was not created"
+  printf '%s\n' "${DOCKER_ENV_FILE} was not created in this run." > ci-artifacts/docker-compose-skip.txt
+fi
 '''
         }
     }
