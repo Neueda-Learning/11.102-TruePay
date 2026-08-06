@@ -8,7 +8,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import jakarta.annotation.PreDestroy;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -16,6 +18,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class PaymentService {
@@ -23,6 +28,7 @@ public class PaymentService {
     private static final Set<String> SUPPORTED_CURRENCIES = Set.of("USD", "EUR", "GBP", "INR");
     private static final BigDecimal MAX_AMOUNT = new BigDecimal("1000000.00");
     private static final BigDecimal FRAUD_AMOUNT = new BigDecimal("50000.00");
+    private static final long CANCELLATION_WINDOW_SECONDS = 5;
 
     private final PaymentRepository paymentRepository;
     private final PaymentStatusHistoryRepository statusHistoryRepository;
@@ -34,6 +40,12 @@ public class PaymentService {
     private final BankAccountService bankAccountService;
     private final BeneficiaryService beneficiaryService;
     private final PaymentLimitService paymentLimitService;
+    private final TransactionTemplate transactionTemplate;
+    private final ScheduledExecutorService delayedProcessor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "truepay-delayed-payment-processor");
+        t.setDaemon(true);
+        return t;
+    });
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentStatusHistoryRepository statusHistoryRepository,
@@ -44,7 +56,8 @@ public class PaymentService {
                           ProfileService profileService,
                           BankAccountService bankAccountService,
                           BeneficiaryService beneficiaryService,
-                          PaymentLimitService paymentLimitService) {
+                          PaymentLimitService paymentLimitService,
+                          TransactionTemplate transactionTemplate) {
         this.paymentRepository = paymentRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.fraudAlertRepository = fraudAlertRepository;
@@ -55,6 +68,7 @@ public class PaymentService {
         this.bankAccountService = bankAccountService;
         this.beneficiaryService = beneficiaryService;
         this.paymentLimitService = paymentLimitService;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @Transactional
@@ -71,6 +85,23 @@ public class PaymentService {
         ReceiverType receiverType = parseUpiReceiverType(request.receiverType());
         return processUpiPayment(userId, resolveSourceAccountId(userId, request.sourceAccount()), request.receiver(), receiverType,
                 request.amount(), request.currency(), request.bankPin());
+    }
+
+    @Transactional
+    public Payment createUpiPaymentWithCancellationWindow(Long userId, UpiTransferRequest request) {
+        ReceiverType receiverType = parseUpiReceiverType(request.receiverType());
+        return initiatePaymentWithCancellationWindow(userId,
+                resolveSourceAccountId(userId, request.sourceAccount()),
+                request.amount(),
+                request.currency(),
+                request.bankPin(),
+                PaymentMethod.UPI,
+                receiverType,
+                request.receiver(),
+                null,
+                null,
+                null,
+                null);
     }
 
     @Transactional
@@ -107,6 +138,131 @@ public class PaymentService {
                 request.currency(),
                 request.bankPin(),
                 null);
+    }
+
+    @Transactional
+    public Payment createBankPaymentWithCancellationWindow(Long userId, BankTransferRequest request) {
+        Long sourceAccountId = resolveSourceAccountId(userId, request.sourceAccount());
+        return initiatePaymentWithCancellationWindow(userId,
+                sourceAccountId,
+                request.amount(),
+                request.currency(),
+                request.bankPin(),
+                PaymentMethod.BANK_TRANSFER,
+                ReceiverType.BANK_ACCOUNT,
+                null,
+                request.receiverName(),
+                request.destinationAccount(),
+                request.destinationIfsc(),
+                null);
+    }
+
+    private Payment initiatePaymentWithCancellationWindow(Long userId,
+                                                          Long sourceAccountId,
+                                                          BigDecimal amount,
+                                                          String currency,
+                                                          String bankPin,
+                                                          PaymentMethod method,
+                                                          ReceiverType receiverType,
+                                                          String receiverValue,
+                                                          String receiverName,
+                                                          String destinationAccount,
+                                                          String destinationIfsc,
+                                                          String referenceRemark) {
+        UserProfile user = profileService.getUserOrThrow(userId);
+        BankAccount source = bankAccountRepository.findByIdForUpdate(sourceAccountId).orElse(null);
+        if (source == null || !source.getUser().getId().equals(userId)) {
+            throw new TruePayException(ErrorCode.INVALID_ACCOUNT, HttpStatus.BAD_REQUEST, "Source account not found");
+        }
+
+        Payment paymentDraft = new Payment();
+        paymentDraft.setUser(user);
+        paymentDraft.setMethod(method);
+        paymentDraft.setAmount(amount);
+        paymentLimitService.validateWithinLimits(paymentDraft);
+
+        bankAccountService.validateBankPin(source, bankPin);
+        validatePaymentFields(source, amount, currency, method, receiverType, receiverValue, destinationAccount, destinationIfsc);
+
+        Payment payment = createPendingPayment(user, source, amount, currency, method, receiverType,
+                receiverValue, receiverName, destinationAccount, destinationIfsc, referenceRemark);
+        schedulePendingPaymentProcessing(payment.getId());
+        return payment;
+    }
+
+    private void schedulePendingPaymentProcessing(UUID paymentId) {
+        delayedProcessor.schedule(() -> transactionTemplate.executeWithoutResult(status -> processPendingPayment(paymentId)),
+                CANCELLATION_WINDOW_SECONDS,
+                TimeUnit.SECONDS);
+    }
+
+    private void processPendingPayment(UUID paymentId) {
+        Payment payment = paymentRepository.findByIdForUpdate(paymentId).orElse(null);
+        if (payment == null || payment.getStatus() != PaymentStatus.PENDING) {
+            return;
+        }
+
+        try {
+            BankAccount source = payment.getSourceAccount() == null
+                    ? null
+                    : bankAccountRepository.findByIdForUpdate(payment.getSourceAccount().getId()).orElse(null);
+            if (source == null) {
+                failPayment(payment, ErrorCode.INVALID_ACCOUNT, "Source account not found");
+                return;
+            }
+
+            if (runFraudChecks(payment)) {
+                return;
+            }
+
+            if (source.getBalance().compareTo(payment.getAmount()) < 0) {
+                failPayment(payment, ErrorCode.INSUFFICIENT_FUNDS, "Insufficient balance");
+                return;
+            }
+
+            if (payment.getMethod() == PaymentMethod.UPI) {
+                source.setBalance(source.getBalance().subtract(payment.getAmount()));
+                if (payment.getReceiverName() == null || payment.getReceiverName().isBlank()) {
+                    payment.setReceiverName(payment.getDestinationUpiId());
+                }
+                payment.setDestinationAccount(null);
+                payment.setDestinationIfsc(null);
+                payment.setStatus(PaymentStatus.SUCCESS);
+                payment.setErrorCode(null);
+                payment.setErrorMessage(null);
+                payment.setFailureReason(null);
+                paymentRepository.save(payment);
+                recordStatus(payment, PaymentStatus.SUCCESS, "SYSTEM", "Payment completed successfully");
+                safeRecordAudit(payment, "PAYMENT_SUCCESS", "Payment of " + payment.getCurrency() + " " + payment.getAmount() + " completed");
+                return;
+            }
+
+            BankAccount destination = resolveDestinationAccount(payment,
+                    payment.getReceiverType(),
+                    payment.getDestinationUpiId(),
+                    payment.getDestinationAccount(),
+                    payment.getDestinationIfsc());
+
+            source.setBalance(source.getBalance().subtract(payment.getAmount()));
+            if (destination != null) {
+                destination.setBalance(destination.getBalance().add(payment.getAmount()));
+                payment.setReceiverName(destination.getUser().getFullName());
+            } else if (payment.getReceiverName() == null || payment.getReceiverName().isBlank()) {
+                payment.setReceiverName("External Account");
+            }
+
+            payment.setStatus(PaymentStatus.SUCCESS);
+            payment.setErrorCode(null);
+            payment.setErrorMessage(null);
+            payment.setFailureReason(null);
+            paymentRepository.save(payment);
+            recordStatus(payment, PaymentStatus.SUCCESS, "SYSTEM", "Payment completed successfully");
+            safeRecordAudit(payment, "PAYMENT_SUCCESS", "Payment of " + payment.getCurrency() + " " + payment.getAmount() + " completed");
+        } catch (TruePayException ex) {
+            failPayment(payment, ex.getErrorCode(), ex.getMessage());
+        } catch (Exception ex) {
+            failPayment(payment, ErrorCode.PROCESSING_ERROR, ex.getMessage());
+        }
     }
 
     private Payment processUpiPayment(Long userId,
@@ -367,7 +523,11 @@ public class PaymentService {
 
     @Transactional
     public Payment cancelPayment(Long userId, UUID paymentId, String reason) {
-        Payment payment = getPayment(userId, paymentId);
+        Payment payment = paymentRepository.findByIdForUpdate(paymentId)
+                .orElseThrow(() -> new TruePayException(ErrorCode.PAYMENT_NOT_FOUND, HttpStatus.NOT_FOUND, "Payment not found"));
+        if (!payment.getUser().getId().equals(userId)) {
+            throw new TruePayException(ErrorCode.PAYMENT_NOT_FOUND, HttpStatus.NOT_FOUND, "Payment not found");
+        }
         if (payment.getStatus() != PaymentStatus.PENDING) {
             throw new TruePayException(ErrorCode.INVALID_STATUS_TRANSITION, HttpStatus.CONFLICT,
                     "Only pending transactions can be cancelled");
@@ -382,6 +542,11 @@ public class PaymentService {
         recordStatus(payment, PaymentStatus.CANCELLED, "USER", cancellationReason);
         safeRecordAudit(payment, "PAYMENT_CANCELLED", cancellationReason);
         return payment;
+    }
+
+    @PreDestroy
+    public void shutdownDelayedProcessor() {
+        delayedProcessor.shutdownNow();
     }
 
     private void recordStatus(Payment payment, PaymentStatus status, String actor, String notes) {

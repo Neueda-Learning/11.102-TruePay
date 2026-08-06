@@ -32,7 +32,7 @@ public class PaymentController {
     @PostMapping("/upi")
     public PaymentResponse payToUpiV2(@Valid @RequestBody UpiTransferRequest request, HttpSession session) {
         Long userId = sessionService.requireUserId(session);
-        return toResponse(paymentService.createUpiPayment(userId, request));
+        return toResponse(paymentService.createUpiPaymentWithCancellationWindow(userId, request));
     }
 
     @PostMapping("/pay-to-bank")
@@ -44,7 +44,7 @@ public class PaymentController {
     @PostMapping("/bank-transfer")
     public PaymentResponse bankTransfer(@Valid @RequestBody BankTransferRequest request, HttpSession session) {
         Long userId = sessionService.requireUserId(session);
-        return toResponse(paymentService.createBankPayment(userId, request));
+        return toResponse(paymentService.createBankPaymentWithCancellationWindow(userId, request));
     }
 
     @PostMapping("/{paymentId}/cancel")
