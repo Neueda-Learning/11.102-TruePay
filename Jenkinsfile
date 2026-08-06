@@ -54,7 +54,7 @@ if ! command -v java >/dev/null 2>&1; then
 fi
 echo "[INFO] Verifying Java runtime"
 java -version
-JAVA_VERSION="$(java -version 2>&1 | awk -F\" '/version/ {print $2}')"
+JAVA_VERSION="$(java -version 2>&1 | head -n 1 | cut -d'"' -f2)"
 if [[ "${JAVA_VERSION}" != 21* ]]; then
   echo "[ERROR] Java 21 is required, found: ${JAVA_VERSION}"
   exit 1
@@ -188,8 +188,8 @@ set -a
 source "${DOCKER_ENV_FILE}"
 set +a
 echo "[INFO] Starting services with docker compose on port ${SERVER_PORT}"
-docker compose --env-file "${DOCKER_ENV_FILE}" up -d --build
-docker compose --env-file "${DOCKER_ENV_FILE}" ps
+docker compose up -d --build
+docker compose ps
 '''
             }
         }
@@ -208,7 +208,7 @@ for i in $(seq 1 60); do
   sleep 5
 done
 echo "[ERROR] MySQL did not become healthy in time"
-docker compose --env-file "${DOCKER_ENV_FILE}" logs mysql || true
+docker compose logs mysql || true
 exit 1
 '''
             }
@@ -222,22 +222,22 @@ set -a
 source "${DOCKER_ENV_FILE}"
 set +a
 
-ACTIVE_DB="$(docker compose --env-file "${DOCKER_ENV_FILE}" exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT DATABASE();"' | tr -d '\r')"
-SQL_USER="$(docker compose --env-file "${DOCKER_ENV_FILE}" exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT CURRENT_USER();"' | tr -d '\r')"
+ACTIVE_DB="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT DATABASE();"' | tr -d '\r')"
+SQL_USER="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT CURRENT_USER();"' | tr -d '\r')"
 echo "[INFO] MySQL SQL session user: ${SQL_USER:-<unknown>}"
 echo "[INFO] MySQL active database before USE: ${ACTIVE_DB:-<none>}"
 
-DB_FOUND="$(docker compose --env-file "${DOCKER_ENV_FILE}" exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SHOW DATABASES LIKE \\\"$MYSQL_DATABASE\\\";"' | tr -d '\r')"
+DB_FOUND="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SHOW DATABASES LIKE \\\"$MYSQL_DATABASE\\\";"' | tr -d '\r')"
 if [[ "${DB_FOUND}" != "${MYSQL_DATABASE}" ]]; then
   echo "[ERROR] Expected database ${MYSQL_DATABASE} not found. Found: ${DB_FOUND:-<none>}"
-  docker compose --env-file "${DOCKER_ENV_FILE}" logs mysql || true
+  docker compose logs mysql || true
   exit 1
 fi
 
-TABLE_FOUND="$(docker compose --env-file "${DOCKER_ENV_FILE}" exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "USE $MYSQL_DATABASE; SHOW TABLES LIKE \\\"user_profiles\\\";"' | tr -d '\r')"
+TABLE_FOUND="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "USE $MYSQL_DATABASE; SHOW TABLES LIKE \\\"user_profiles\\\";"' | tr -d '\r')"
 if [[ "${TABLE_FOUND}" != "user_profiles" ]]; then
   echo "[ERROR] Expected table user_profiles not found in database ${MYSQL_DATABASE}"
-  docker compose --env-file "${DOCKER_ENV_FILE}" logs mysql || true
+  docker compose logs mysql || true
   exit 1
 fi
 
@@ -263,7 +263,7 @@ for i in $(seq 1 60); do
   sleep 5
 done
 echo "[ERROR] Application failed to start on port ${APP_PORT}"
-docker compose --env-file "${DOCKER_ENV_FILE}" logs app || true
+docker compose logs app || true
 exit 1
 '''
             }
@@ -274,12 +274,16 @@ exit 1
         always {
             sh '''#!/usr/bin/env bash
 set +e
-echo "[INFO] Docker compose service status"
-docker compose --env-file "${DOCKER_ENV_FILE}" ps
-echo "[INFO] Recent compose logs"
-docker compose --env-file "${DOCKER_ENV_FILE}" logs --tail=150
-echo "[INFO] Cleaning up docker compose resources"
-docker compose --env-file "${DOCKER_ENV_FILE}" down -v --remove-orphans
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  echo "[INFO] Docker compose service status"
+  docker compose ps || true
+  echo "[INFO] Recent compose logs"
+  docker compose logs --tail=150 || true
+  echo "[INFO] Cleaning up docker compose resources"
+  docker compose down -v --remove-orphans || true
+else
+  echo "[INFO] Skipping Docker compose post actions because Docker Compose is unavailable on this agent"
+fi
 '''
         }
     }
