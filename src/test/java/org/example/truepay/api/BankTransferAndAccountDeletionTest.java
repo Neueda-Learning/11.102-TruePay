@@ -118,6 +118,28 @@ class BankTransferAndAccountDeletionTest {
     }
 
     @Test
+    void bankTransferEndpointRejectsNonInrForInternalAccount() throws Exception {
+        String payload = """
+                {
+                  "sourceAccount": "%s",
+                  "destinationAccount": "%s",
+                  "destinationIfsc": "%s",
+                  "amount": 250.00,
+                  "currency": "USD",
+                  "bankPin": "123456"
+                }
+                """.formatted(source.getAccountNumber(), destination.getAccountNumber(), destination.getIfscCode());
+
+        mockMvc.perform(post("/api/v1/payments/bank-transfer")
+                        .sessionAttr(SessionService.SESSION_USER_ID, owner.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CURRENCY"))
+                .andExpect(jsonPath("$.message").value("This is an INR account. Please transfer in INR only"));
+    }
+
+    @Test
     void deleteAccountDetachesHistoricalPaymentsAndDeletesAccount() throws Exception {
         Payment archived = new Payment();
         archived.setUser(owner);
