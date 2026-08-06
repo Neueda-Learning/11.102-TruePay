@@ -446,6 +446,20 @@ body.color-blind .timeline-dot.SENT { border-style: double; }
 
 .page-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .page-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.analysis-recent-row { display: grid; grid-template-columns: 1fr; gap: 16px; }
+
+.analysis-status-chart-wrap {
+  position: relative;
+  width: 100%;
+  height: clamp(220px, 36vh, 360px);
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.analysis-status-chart-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
 
 .empty { text-align: center; padding: 32px; color: var(--text-sub); font-size: 14px; }
 .mt4 { margin-top: 4px; } .mt8 { margin-top: 8px; } .mt16 { margin-top: 16px; }
@@ -505,6 +519,26 @@ body.dark .topbar {
 
 .dashboard-main-col,
 .dashboard-side-col { min-width: 0; }
+
+.dashboard-main-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dashboard-kpi-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.kpi-equal-card {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 
 .dashboard-hero-grid {
   display: grid;
@@ -611,6 +645,12 @@ body.dark .topbar {
 .dashboard-account-num { font-size: 11px; color: var(--text-sub); }
 .dashboard-account-bal { font-size: 14px; font-weight: 700; color: #9a84ff; }
 
+#dashboardBankAccountsList {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .side-note-ok {
   margin: 10px 0 6px;
   display: inline-flex;
@@ -628,6 +668,7 @@ body.dark .topbar {
 @media (max-width: 1200px) {
   .dashboard-shell { grid-template-columns: 1fr; }
   .dashboard-side-col { order: -1; }
+  .dashboard-kpi-row { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 900px) {
@@ -636,6 +677,7 @@ body.dark .topbar {
   .topbar { height: auto; flex-wrap: wrap; padding: 12px 16px; gap: 10px; }
   .topbar-search-wrap { min-width: 100%; }
   .dashboard-hero-grid { grid-template-columns: 1fr; }
+  .dashboard-kpi-row { grid-template-columns: 1fr; }
 }
 
 ::-webkit-scrollbar { width: 5px; }

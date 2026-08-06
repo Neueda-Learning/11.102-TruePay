@@ -53,9 +53,11 @@ function getChartPalette() {
       volume: '#0072B2',
       completed: '#0072B2',
       failed: '#D55E00',
+      cancelled: '#6B7280',
       pending: '#CC79A7',
       fraud: '#E69F00',
       upi: '#56B4E9',
+      mobile: '#CC79A7',
       bank: '#009E73'
     };
   }
@@ -64,9 +66,11 @@ function getChartPalette() {
     volume: '#7c5cfc',
     completed: '#22c55e',
     failed: '#ef4444',
+    cancelled: '#9ca3af',
     pending: '#7c5cfc',
     fraud: '#fb923c',
     upi: 'rgba(124,92,252,.8)',
+    mobile: 'rgba(217,70,239,.8)',
     bank: 'rgba(79,140,255,.8)'
   };
 }
@@ -299,26 +303,27 @@ function renderSidebar() {
 function renderKPIs() {
   if (!state.summary) return;
   const s = state.summary;
+  const cancelled = state.payments.filter((p) => normalizeStatus(p.status) === 'CANCELLED').length;
   document.getElementById('kpiBalance').textContent = inr(s.combinedBalance);
   document.getElementById('kpiAccounts').textContent = s.linkedBankAccounts + ' accounts linked';
   document.getElementById('kpiCompleted').textContent = s.completedPayments;
   document.getElementById('kpiFailed').textContent = s.failedPayments;
-  document.getElementById('kpiFraud').textContent = s.fraudAlerts;
+  document.getElementById('kpiCancelled').textContent = cancelled;
   document.getElementById('chartTotalLabel').textContent = s.totalPayments + ' total payments';
 }
 
 function renderCharts() {
   if (!state.summary) return;
 
-  ['volumeChart', 'statusChart', 'methodChart', 'riskChart'].forEach((id) => {
+  ['volumeChart', 'statusChart', 'methodChart'].forEach((id) => {
     if (state.charts[id]) state.charts[id].destroy();
   });
 
   const s = state.summary;
   const palette = getChartPalette();
-  const completed = s.completedPayments;
-  const failed = s.failedPayments;
-  const inProgress = Math.max(0, s.totalPayments - completed - failed);
+  const completed = state.payments.filter((p) => normalizeStatus(p.status) === 'SUCCESS').length;
+  const failed = state.payments.filter((p) => normalizeStatus(p.status) === 'FAILED').length;
+  const cancelled = state.payments.filter((p) => normalizeStatus(p.status) === 'CANCELLED').length;
 
   const lastSeven = [0, 0, 0, 0, 0, 0, 0];
   const now = new Date();
@@ -366,52 +371,27 @@ function renderCharts() {
   state.charts.statusChart = new Chart(document.getElementById('statusChart'), {
     type: 'doughnut',
     data: {
-      labels: ['Completed', 'Failed', 'In Progress'],
+      labels: ['Completed', 'Failed', 'Cancelled'],
       datasets: [{
-        data: [completed, failed, inProgress],
-        backgroundColor: [palette.completed, palette.failed, palette.pending],
+        data: [completed, failed, cancelled],
+        backgroundColor: [palette.completed, palette.failed, palette.cancelled],
         borderColor: getColorBlindMode() ? ['#ffffff', '#ffffff', '#ffffff'] : undefined,
         borderWidth: getColorBlindMode() ? 2 : 0
       }]
     },
-    options: { responsive: true, cutout: '65%', plugins: { legend: { display: false } } }
+    options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } }
   });
 
-  const upiCount = state.payments.filter((p) => p.method === 'UPI').length;
+  const mobileCount = state.payments.filter((p) => p.method === 'UPI' && /^\d{10}$/.test(String(p.destinationUpiId || '').trim())).length;
+  const upiCount = state.payments.filter((p) => p.method === 'UPI' && !/^\d{10}$/.test(String(p.destinationUpiId || '').trim())).length;
   const bankCount = state.payments.filter((p) => p.method === 'BANK' || p.method === 'BANK_TRANSFER').length;
   state.charts.methodChart = new Chart(document.getElementById('methodChart'), {
     type: 'bar',
     data: {
-      labels: ['UPI', 'Bank Transfer'],
+      labels: ['UPI', 'Mobile', 'Bank Transfer'],
       datasets: [{
-        data: [upiCount, bankCount],
-        backgroundColor: [palette.upi, palette.bank],
-        borderColor: getColorBlindMode() ? ['#1f2937', '#1f2937'] : undefined,
-        borderWidth: getColorBlindMode() ? 1 : 0
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            precision: 0,
-            stepSize: 1
-          }
-        }
-      }
-    }
-  });
-
-  state.charts.riskChart = new Chart(document.getElementById('riskChart'), {
-    type: 'bar',
-    data: {
-      labels: ['Completed', 'Failed', 'Fraud Alerts'],
-      datasets: [{
-        data: [completed, failed, s.fraudAlerts],
-        backgroundColor: [palette.completed, palette.failed, palette.fraud],
+        data: [upiCount, mobileCount, bankCount],
+        backgroundColor: [palette.upi, palette.mobile, palette.bank],
         borderColor: getColorBlindMode() ? ['#1f2937', '#1f2937', '#1f2937'] : undefined,
         borderWidth: getColorBlindMode() ? 1 : 0
       }]
@@ -431,11 +411,11 @@ function renderCharts() {
     }
   });
 
-  const total = completed + failed + inProgress || 1;
+  const total = completed + failed + cancelled || 1;
   document.getElementById('distList').innerHTML = [
     { label: 'Completed', val: completed, color: palette.completed, glyph: 'OK' },
     { label: 'Failed', val: failed, color: palette.failed, glyph: 'X' },
-    { label: 'In Progress', val: inProgress, color: palette.pending, glyph: 'INP' }
+    { label: 'Cancelled', val: cancelled, color: palette.cancelled, glyph: 'CXL' }
   ].map((d) => `<div class="dist-item"><div class="dist-dot" style="background:${d.color}"></div><span class="dist-label">${d.glyph} ${d.label}</span><span class="dist-val">${d.val}</span><span class="dist-pct">${Math.round((d.val / total) * 100)}%</span></div>`).join('');
 }
 
@@ -492,7 +472,7 @@ function renderAccounts() {
     if (el) el.innerHTML = options;
   });
 
-  const sideList = visibleAccounts.slice(0, 5).map((a) => `
+  const sideList = visibleAccounts.map((a) => `
     <div class="dashboard-account-item">
       <div>
         <div class="dashboard-account-bank">${a.bankName}</div>
