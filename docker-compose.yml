@@ -3,11 +3,8 @@ services:
     image: mysql:8.0
     container_name: truepay-mysql
     restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: truepay
-      MYSQL_ROOT_PASSWORD: n3u3da!
-      MYSQL_USER: truepay
-      MYSQL_PASSWORD: n3u3da!
+    env_file:
+      - ./.env.docker
     ports:
       - "3306:3306"
     volumes:
@@ -29,11 +26,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    environment:
-      SERVER_PORT: 8082
-      DB_URL: jdbc:mysql://mysql:3306/truepay
-      DB_USER: truepay
-      DB_PASSWORD: n3u3da!
+    env_file:
+      - ./.env.docker
     ports:
       - "8082:8082"
 
