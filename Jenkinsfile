@@ -1,11 +1,6 @@
 pipeline {
     agent any
 
-    tools {
-        jdk 'jdk21'
-        maven 'maven3'
-    }
-
     options {
         skipDefaultCheckout(true)
         timestamps()
@@ -25,6 +20,16 @@ pipeline {
     }
 
     stages {
+        stage('Verify Jenkins Agent') {
+            steps {
+                script {
+                    if (!isUnix()) {
+                        error('This pipeline requires a Linux/Unix Jenkins agent because it uses sh/bash commands, docker compose, awk, curl, and source.')
+                    }
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
                 script {
@@ -43,6 +48,10 @@ pipeline {
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
+if ! command -v java >/dev/null 2>&1; then
+  echo "[ERROR] Java is not installed or not available on PATH"
+  exit 1
+fi
 echo "[INFO] Verifying Java runtime"
 java -version
 JAVA_VERSION="$(java -version 2>&1 | awk -F\" '/version/ {print $2}')"
@@ -51,6 +60,20 @@ if [[ "${JAVA_VERSION}" != 21* ]]; then
   exit 1
 fi
 echo "[INFO] Java version OK: ${JAVA_VERSION}"
+'''
+            }
+        }
+
+        stage('Verify Maven') {
+            steps {
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
+if ! command -v mvn >/dev/null 2>&1; then
+  echo "[ERROR] Maven is not installed or not available on PATH"
+  exit 1
+fi
+echo "[INFO] Verifying Maven runtime"
+mvn -version
 '''
             }
         }
