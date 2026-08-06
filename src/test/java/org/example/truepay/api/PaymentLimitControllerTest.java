@@ -139,16 +139,15 @@ class PaymentLimitControllerTest {
 
         String first = """
                 {
-                  "sourceAccount": "%s",
-                  "receiverType": "UPI",
-                  "receiver": "merchant@upi",
+                  "sourceAccountId": %d,
                   "amount": 60.00,
                   "currency": "INR",
+                  "destinationUpiId": "merchant@upi",
                   "bankPin": "123456"
                 }
-                """.formatted(source.getAccountNumber());
+                """.formatted(source.getId());
 
-        mockMvc.perform(post("/api/v1/payments/upi")
+        mockMvc.perform(post("/api/v1/payments/pay-to-upi")
                         .sessionAttr(SessionService.SESSION_USER_ID, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(first))
@@ -157,16 +156,15 @@ class PaymentLimitControllerTest {
 
         String second = """
                 {
-                  "sourceAccount": "%s",
-                  "receiverType": "UPI",
-                  "receiver": "merchant@upi",
+                  "sourceAccountId": %d,
                   "amount": 50.00,
                   "currency": "INR",
+                  "destinationUpiId": "merchant@upi",
                   "bankPin": "123456"
                 }
-                """.formatted(source.getAccountNumber());
+                """.formatted(source.getId());
 
-        mockMvc.perform(post("/api/v1/payments/upi")
+        mockMvc.perform(post("/api/v1/payments/pay-to-upi")
                         .sessionAttr(SessionService.SESSION_USER_ID, user.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(second))

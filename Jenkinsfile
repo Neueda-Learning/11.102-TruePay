@@ -1,11 +1,6 @@
 pipeline {
     agent any
 
-    tools {
-        jdk 'jdk21'
-        maven 'maven3'
-    }
-
     options {
         skipDefaultCheckout(true)
         timestamps()
@@ -13,32 +8,38 @@ pipeline {
     }
 
     parameters {
-        string(name: 'REPO_URL', defaultValue: 'https://github.com/Neueda-Learning/11.102-TruePay.git', description: 'Optional Git repository URL. Leave empty to use Jenkins job SCM.')
-        string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Branch to checkout when REPO_URL is provided.')
+        string(name: 'REPO_URL', defaultValue: 'https://github.com/Neueda-Learning/11.102-TruePay.git', description: 'Git repository URL to checkout (uses default when left unchanged).')
+        string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Branch to checkout from the configured repository URL.')
         string(name: 'GIT_CREDENTIALS_ID', defaultValue: '', description: 'Optional Jenkins credentials ID for private repository access.')
     }
 
     environment {
-        DB_URL = 'jdbc:mysql://mysql:3306/truepay'
-        DB_USER = 'truepay'
-        DB_PASSWORD = 'n3u3da!'
+        DEFAULT_GIT_URL = 'https://github.com/Neueda-Learning/11.102-TruePay.git'
+        APP_PORT = '8082'
+        DOCKER_ENV_FILE = '.env.docker'
         DOCKER_IMAGE = "truepay:${env.BUILD_NUMBER}"
     }
 
     stages {
+        stage('Verify Jenkins Agent') {
+            steps {
+                script {
+                    if (!isUnix()) {
+                        error('This pipeline requires a Linux/Unix Jenkins agent because it uses sh/bash commands, docker compose, awk, curl, and source.')
+                    }
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
                 script {
-                    if (params.REPO_URL?.trim()) {
-                        echo "[INFO] Checking out from explicit repository URL: ${params.REPO_URL}"
-                        if (params.GIT_CREDENTIALS_ID?.trim()) {
-                            git branch: params.GIT_BRANCH, url: params.REPO_URL, credentialsId: params.GIT_CREDENTIALS_ID
-                        } else {
-                            git branch: params.GIT_BRANCH, url: params.REPO_URL
-                        }
+                    String repoUrl = params.REPO_URL?.trim() ? params.REPO_URL.trim() : env.DEFAULT_GIT_URL
+                    echo "[INFO] Checking out from repository URL: ${repoUrl}"
+                    if (params.GIT_CREDENTIALS_ID?.trim()) {
+                        git branch: params.GIT_BRANCH, url: repoUrl, credentialsId: params.GIT_CREDENTIALS_ID
                     } else {
-                        echo "[INFO] REPO_URL not provided. Falling back to Jenkins job SCM configuration."
-                        checkout scm
+                        git branch: params.GIT_BRANCH, url: repoUrl
                     }
                 }
             }
@@ -70,14 +71,32 @@ fi
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
+if ! command -v java >/dev/null 2>&1; then
+  echo "[ERROR] Java is not installed or not available on PATH"
+  exit 1
+fi
 echo "[INFO] Verifying Java runtime"
 java -version
-JAVA_VERSION="$(java -version 2>&1 | awk -F\" '/version/ {print $2}')"
+JAVA_VERSION="$(java -version 2>&1 | head -n 1 | cut -d'"' -f2)"
 if [[ "${JAVA_VERSION}" != 21* ]]; then
   echo "[ERROR] Java 21 is required, found: ${JAVA_VERSION}"
   exit 1
 fi
 echo "[INFO] Java version OK: ${JAVA_VERSION}"
+'''
+            }
+        }
+
+        stage('Verify Maven') {
+            steps {
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
+if ! command -v mvn >/dev/null 2>&1; then
+  echo "[ERROR] Maven is not installed or not available on PATH"
+  exit 1
+fi
+echo "[INFO] Verifying Maven runtime"
+mvn -version
 '''
             }
         }
@@ -108,6 +127,37 @@ mvn -B test
 set -euo pipefail
 echo "[INFO] Running mvn package -DskipTests"
 mvn -B package -DskipTests
+'''
+            }
+        }
+
+        stage('Verify Docker Prerequisites') {
+            steps {
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "[ERROR] Docker CLI is not installed on this Jenkins agent"
+  exit 1
+fi
+
+echo "[INFO] Docker CLI version"
+docker --version
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "[ERROR] Docker Compose plugin is not available (expected: docker compose ...)"
+  exit 1
+fi
+
+echo "[INFO] Docker Compose version"
+docker compose version
+
+if ! docker info >/dev/null 2>&1; then
+  echo "[ERROR] Docker daemon is not reachable for this Jenkins user"
+  exit 1
+fi
+
+echo "[INFO] Docker daemon is reachable"
 '''
             }
         }
@@ -185,14 +235,50 @@ exit 1
             }
         }
 
-        stage('Verify App on 8082') {
+        stage('Verify MySQL Schema') {
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
-echo "[INFO] Verifying Spring Boot app on port 8082"
+set -a
+source "${DOCKER_ENV_FILE}"
+set +a
+
+ACTIVE_DB="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT DATABASE();"' | tr -d '\r')"
+SQL_USER="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SELECT CURRENT_USER();"' | tr -d '\r')"
+echo "[INFO] MySQL SQL session user: ${SQL_USER:-<unknown>}"
+echo "[INFO] MySQL active database before USE: ${ACTIVE_DB:-<none>}"
+
+DB_FOUND="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "SHOW DATABASES LIKE \\\"$MYSQL_DATABASE\\\";"' | tr -d '\r')"
+if [[ "${DB_FOUND}" != "${MYSQL_DATABASE}" ]]; then
+  echo "[ERROR] Expected database ${MYSQL_DATABASE} not found. Found: ${DB_FOUND:-<none>}"
+  docker compose logs mysql || true
+  exit 1
+fi
+
+TABLE_FOUND="$(docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -Nse "USE $MYSQL_DATABASE; SHOW TABLES LIKE \\\"user_profiles\\\";"' | tr -d '\r')"
+if [[ "${TABLE_FOUND}" != "user_profiles" ]]; then
+  echo "[ERROR] Expected table user_profiles not found in database ${MYSQL_DATABASE}"
+  docker compose logs mysql || true
+  exit 1
+fi
+
+echo "[INFO] MySQL schema verified in database ${MYSQL_DATABASE}"
+'''
+            }
+        }
+
+        stage('Verify App') {
+            steps {
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
+set -a
+source "${DOCKER_ENV_FILE}"
+set +a
+APP_PORT="${SERVER_PORT:-8082}"
+echo "[INFO] Verifying Spring Boot app on port ${APP_PORT}"
 for i in $(seq 1 60); do
-  if curl -fsS "http://localhost:8082/" > /dev/null; then
-    echo "[INFO] Application is reachable on port 8082"
+  if curl -fsS "http://localhost:${APP_PORT}/" > /dev/null; then
+    echo "[INFO] Application is reachable on port ${APP_PORT}"
     exit 0
   fi
   sleep 5
