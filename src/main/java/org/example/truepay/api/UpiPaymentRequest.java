@@ -11,7 +11,7 @@ public record UpiPaymentRequest(
         @NotNull Long sourceAccountId,
         @NotNull @DecimalMin(value = "0.01", inclusive = true) BigDecimal amount,
         @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "Currency must be ISO-4217 format") String currency,
-        @NotBlank String destinationUpiId,
+        @NotBlank @Pattern(regexp = "^[a-zA-Z0-9._-]+@[a-zA-Z][a-zA-Z0-9]{2,}$", message = "Invalid UPI ID format (e.g. name@bank)") String destinationUpiId,
         @NotBlank @Pattern(regexp = "^\\d{6}$", message = "Bank PIN must be 6 digits") String bankPin
 ) {
 }

@@ -306,7 +306,7 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Destination IFSC Code</label>
-                <input class="form-input" name="destinationIfsc" placeholder="HDFC0006789" minlength="11" maxlength="11" pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" required />
+                <input class="form-input" name="destinationIfsc" placeholder="HDFC0006789" minlength="11" maxlength="11" pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" title="Enter a valid IFSC code (e.g. HDFC0001234)" required />
               </div>
               <div class="form-group">
                 <label class="form-label">Receiver Name (optional)</label>
@@ -385,7 +385,7 @@
               </div>
               <div class="form-group">
                 <label class="form-label">IFSC Code</label>
-                <input class="form-input" name="ifscCode" placeholder="HDFC0001234" required />
+                <input class="form-input" name="ifscCode" placeholder="HDFC0001234" minlength="11" maxlength="11" pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" title="Enter a valid IFSC code (e.g. HDFC0001234)" required />
               </div>
               <div class="form-group">
                 <label class="form-label">Account Type</label>
@@ -529,6 +529,6 @@
   </div><!-- /main -->
 </div><!-- /app-shell -->
 
-<script src="/app.js?v=20260812"></script>
+<script src="/app.js?v=20260813"></script>
 </body>
 </html>
