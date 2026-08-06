@@ -72,53 +72,49 @@
 
     <!-- PAGE: Dashboard -->
     <div class="page active" id="page-dashboard">
-      <div class="dashboard-shell">
-        <div class="dashboard-main-col">
-          <div class="dashboard-hero-grid">
-            <div class="hero-balance-card">
-              <div class="hero-head">
-                <div class="kpi-label">Combined Balance</div>
-                <span class="hero-chip" id="kpiAccounts">0 accounts</span>
-              </div>
-              <div class="hero-balance" id="kpiBalance">INR 0.00</div>
+      <div class="dashboard-main-stack">
+        <div class="dashboard-kpi-row">
+          <div class="hero-balance-card kpi-equal-card">
+            <div class="hero-head">
+              <div class="kpi-label">Combined Balance</div>
+              <span class="hero-chip" id="kpiAccounts">0 accounts</span>
             </div>
-
-            <div class="mini-kpi-wrap">
-              <div class="mini-kpi-card">
-                <div class="kpi-label">Completed</div>
-                <div class="mini-kpi-value" id="kpiCompleted">0</div>
-                <div class="kpi-badge up">Successful</div>
-              </div>
-              <div class="mini-kpi-card">
-                <div class="kpi-label">Failed</div>
-                <div class="mini-kpi-value" id="kpiFailed">0</div>
-                <div class="kpi-badge down">Needs attention</div>
-              </div>
-              <div class="mini-kpi-card">
-                <div class="kpi-label">Fraud Alerts</div>
-                <div class="mini-kpi-value" id="kpiFraud">0</div>
-                <div class="kpi-badge neutral">Monitored</div>
-              </div>
-            </div>
+            <div class="hero-balance" id="kpiBalance">INR 0.00</div>
           </div>
 
+          <div class="mini-kpi-card kpi-equal-card">
+            <div class="kpi-label">Completed</div>
+            <div class="mini-kpi-value" id="kpiCompleted">0</div>
+            <div class="kpi-badge up">Successful</div>
+          </div>
+
+          <div class="mini-kpi-card kpi-equal-card">
+            <div class="kpi-label">Failed</div>
+            <div class="mini-kpi-value" id="kpiFailed">0</div>
+            <div class="kpi-badge down">Needs attention</div>
+          </div>
+
+          <div class="mini-kpi-card kpi-equal-card">
+            <div class="kpi-label">Cancelled</div>
+            <div class="mini-kpi-value" id="kpiCancelled">0</div>
+            <div class="kpi-badge neutral">Cancelled payments</div>
+          </div>
         </div>
 
-        <aside class="dashboard-side-col">
-          <div class="panel quick-actions-card">
-            <div class="panel-title" style="margin-bottom:12px;">Quick Actions</div>
-            <div class="quick-actions-grid">
-              <button class="quick-action" onclick="navigate('pay-upi')">Pay via UPI</button>
-              <button class="quick-action" onclick="navigate('pay-bank')">Bank Transfer</button>
-              <button class="quick-action" onclick="navigate('accounts')">Add Bank Account</button>
-              <button class="quick-action" onclick="navigate('history')">View History</button>
-            </div>
+        <div class="panel quick-actions-card">
+          <div class="panel-title" style="margin-bottom:12px;">Quick Actions</div>
+          <div class="quick-actions-grid">
+            <button class="quick-action" onclick="navigate('pay-upi')">Pay via UPI</button>
+            <button class="quick-action" onclick="navigate('pay-bank')">Bank Transfer</button>
+            <button class="quick-action" onclick="navigate('accounts')">Add Bank Account</button>
+            <button class="quick-action" onclick="navigate('history')">View History</button>
           </div>
-          <div class="panel side-accounts-panel">
-            <div class="panel-title" style="margin-bottom:12px;">My Bank Accounts</div>
-            <div id="dashboardBankAccountsList"></div>
-          </div>
-        </aside>
+        </div>
+
+        <div class="panel side-accounts-panel">
+          <div class="panel-title" style="margin-bottom:12px;">My Bank Accounts</div>
+          <div id="dashboardBankAccountsList"></div>
+        </div>
       </div>
     </div>
 
@@ -144,7 +140,9 @@
               <div class="chart-meta">All-time distribution</div>
             </div>
           </div>
-          <canvas id="statusChart" height="160"></canvas>
+          <div class="analysis-status-chart-wrap">
+            <canvas id="statusChart"></canvas>
+          </div>
           <div class="dist-list mt8" id="distList"></div>
         </div>
         <div class="chart-card">
@@ -155,13 +153,7 @@
         </div>
       </div>
 
-      <div class="page-grid-2 mt16">
-        <div class="chart-card">
-          <div class="chart-header">
-            <div class="chart-title">Risk Overview</div>
-          </div>
-          <canvas id="riskChart" height="140"></canvas>
-        </div>
+      <div class="analysis-recent-row mt16">
         <div class="chart-card">
           <div class="chart-header"><div class="chart-title">Recent Transactions</div></div>
           <table class="data-table compact-table">
@@ -537,6 +529,6 @@
   </div><!-- /main -->
 </div><!-- /app-shell -->
 
-<script src="/app.js?v=20260806"></script>
+<script src="/app.js?v=20260812"></script>
 </body>
 </html>
