@@ -4,6 +4,7 @@ pipeline {
     options {
         skipDefaultCheckout(true)
         timestamps()
+        disableConcurrentBuilds()
     }
 
     parameters {
@@ -41,6 +42,28 @@ pipeline {
                         git branch: params.GIT_BRANCH, url: repoUrl
                     }
                 }
+            }
+        }
+
+        stage('Docker Preflight') {
+            steps {
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
+echo "[INFO] Verifying Docker CLI and daemon"
+docker --version
+docker info > /dev/null
+
+if docker compose version > /dev/null 2>&1; then
+  echo "[INFO] Using docker compose plugin"
+  docker compose version
+elif command -v docker-compose > /dev/null 2>&1; then
+  echo "[INFO] Using legacy docker-compose binary"
+  docker-compose --version
+else
+  echo "[ERROR] Neither 'docker compose' nor 'docker-compose' is available"
+  exit 1
+fi
+'''
             }
         }
 
@@ -149,33 +172,23 @@ docker build -t "${DOCKER_IMAGE}" .
             }
         }
 
-        stage('Validate Docker Env File') {
+        stage('Prepare Compose Env') {
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
-if [[ ! -f "${DOCKER_ENV_FILE}" ]]; then
-  echo "[ERROR] ${DOCKER_ENV_FILE} is missing"
-  exit 1
-fi
+cat > .env.ci <<EOF
+SERVER_PORT=8082
+DB_URL=${DB_URL}
+DB_USER=${DB_USER}
+DB_PASSWORD=${DB_PASSWORD}
+MYSQL_DATABASE=truepay
+MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
+MYSQL_USER=${DB_USER}
+MYSQL_PASSWORD=${DB_PASSWORD}
+EOF
 
-set -a
-source "${DOCKER_ENV_FILE}"
-set +a
-
-required_vars=(MYSQL_DATABASE MYSQL_ROOT_PASSWORD MYSQL_USER MYSQL_PASSWORD DB_URL DB_USER DB_PASSWORD SERVER_PORT)
-for key in "${required_vars[@]}"; do
-  if [[ -z "${!key:-}" ]]; then
-    echo "[ERROR] Missing required env var in ${DOCKER_ENV_FILE}: ${key}"
-    exit 1
-  fi
-done
-
-if [[ "${DB_URL}" != *"/${MYSQL_DATABASE}"* ]]; then
-  echo "[ERROR] DB_URL (${DB_URL}) does not target MYSQL_DATABASE (${MYSQL_DATABASE})"
-  exit 1
-fi
-
-echo "[INFO] Env validated: MYSQL_DATABASE=${MYSQL_DATABASE}, DB_USER=${DB_USER}, SERVER_PORT=${SERVER_PORT}"
+echo "[INFO] Generated .env.ci for compose"
+sed 's/=.*/=***MASKED***/' .env.ci | sed 's/^SERVER_PORT=.*/SERVER_PORT=8082/'
 '''
             }
         }
@@ -184,12 +197,15 @@ echo "[INFO] Env validated: MYSQL_DATABASE=${MYSQL_DATABASE}, DB_USER=${DB_USER}
             steps {
                 sh '''#!/usr/bin/env bash
 set -euo pipefail
-set -a
-source "${DOCKER_ENV_FILE}"
-set +a
-echo "[INFO] Starting services with docker compose on port ${SERVER_PORT}"
-docker compose up -d --build
-docker compose ps
+echo "[INFO] Starting services with docker compose"
+if docker compose version > /dev/null 2>&1; then
+  COMPOSE="docker compose"
+else
+  COMPOSE="docker-compose"
+fi
+
+$COMPOSE --env-file .env.ci up -d --build
+$COMPOSE --env-file .env.ci ps
 '''
             }
         }
@@ -208,7 +224,12 @@ for i in $(seq 1 60); do
   sleep 5
 done
 echo "[ERROR] MySQL did not become healthy in time"
-docker compose logs mysql || true
+if docker compose version > /dev/null 2>&1; then
+  COMPOSE="docker compose"
+else
+  COMPOSE="docker-compose"
+fi
+$COMPOSE --env-file .env.ci logs mysql || true
 exit 1
 '''
             }
@@ -262,8 +283,13 @@ for i in $(seq 1 60); do
   fi
   sleep 5
 done
-echo "[ERROR] Application failed to start on port ${APP_PORT}"
-docker compose logs app || true
+echo "[ERROR] Application failed to start on port 8082"
+if docker compose version > /dev/null 2>&1; then
+  COMPOSE="docker compose"
+else
+  COMPOSE="docker-compose"
+fi
+$COMPOSE --env-file .env.ci logs app || true
 exit 1
 '''
             }
@@ -274,16 +300,19 @@ exit 1
         always {
             sh '''#!/usr/bin/env bash
 set +e
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  echo "[INFO] Docker compose service status"
-  docker compose ps || true
-  echo "[INFO] Recent compose logs"
-  docker compose logs --tail=150 || true
-  echo "[INFO] Cleaning up docker compose resources"
-  docker compose down -v --remove-orphans || true
+if docker compose version > /dev/null 2>&1; then
+  COMPOSE="docker compose"
 else
-  echo "[INFO] Skipping Docker compose post actions because Docker Compose is unavailable on this agent"
+  COMPOSE="docker-compose"
 fi
+
+echo "[INFO] Docker compose service status"
+$COMPOSE --env-file .env.ci ps
+echo "[INFO] Recent compose logs"
+$COMPOSE --env-file .env.ci logs --tail=150
+echo "[INFO] Cleaning up docker compose resources"
+$COMPOSE --env-file .env.ci down -v --remove-orphans
+rm -f .env.ci
 '''
         }
     }

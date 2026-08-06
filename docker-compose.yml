@@ -1,10 +1,15 @@
+version: '3.9'
+
 services:
   mysql:
     image: mysql:8.0
     container_name: truepay-mysql
     restart: unless-stopped
-    env_file:
-      - ./.env.docker
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-truepay}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-n3u3da!}
+      MYSQL_USER: ${MYSQL_USER:-truepay}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-n3u3da!}
     ports:
       - "3306:3306"
     volumes:
@@ -16,6 +21,8 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+    networks:
+      - truepay-network
 
   app:
     build:
@@ -26,11 +33,27 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    env_file:
-      - ./.env.docker
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8082}
+      DB_URL: ${DB_URL:-jdbc:mysql://mysql:3306/truepay}
+      DB_USER: ${DB_USER:-truepay}
+      DB_PASSWORD: ${DB_PASSWORD:-n3u3da!}
     ports:
-      - "8082:8082"
+      - "${SERVER_PORT:-8082}:${SERVER_PORT:-8082}"
+    networks:
+      - truepay-network
+    # Uncomment to bind logs to file
+    # logging:
+    #   driver: "json-file"
+    #   options:
+    #     max-size: "10m"
+    #     max-file: "3"
 
 volumes:
   mysql_data:
+    driver: local
+
+networks:
+  truepay-network:
+    driver: bridge
 
