@@ -1,0 +1,56 @@
+# Build artifacts
+target/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.gitignore
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.github
+
+# Maven
+.m2/
+
+# Documentation
+*.md
+DOCKER_DEPLOYMENT.md
+DOCKER_QUICKSTART.md
+
+# Test files
+src/test/
+
+# Docker files
+Dockerfile
+docker-compose.yml
+docker-start.ps1
+docker-start.sh
+.dockerignore
+
+# CI/CD
+.jenkins
+.gitlab-ci.yml
+.github/
+Jenkinsfile
+
+# Logs
+*.log
+*.err
+*.out
+
+# Runtime
+run*.log
+live*.log
+debug*.log
+
